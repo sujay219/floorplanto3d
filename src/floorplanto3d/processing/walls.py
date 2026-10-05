@@ -1,0 +1,808 @@
+"""Wall extraction: stroke polygons to centrelines.
+
+The pipeline is:
+
+1. Find connected components of ink (each wall stroke is one blob).
+2. Simplify each blob's contour into a polygon.
+3. Treat every polygon edge as a candidate wall centreline.
+4. Merge collinear candidates that belong to the same wall run.
+5. Measure thickness by sampling ink across each centreline.
+
+Because doors and windows are *gaps* in a wall rather than separate marks,
+they are recovered later in :mod:`floorplanto3d.processing.openings` by
+projecting the ink mask onto each wall.
+"""
+
+from __future__ import annotations
+
+import logging
+import math
+from dataclasses import dataclass, field
+
+import cv2
+import numpy as np
+
+from floorplanto3d.models.geometry import Point2D, classify_orientation
+from floorplanto3d.models.wall import Wall
+
+logger = logging.getLogger(__name__)
+
+
+@dataclass
+class StrokeCandidate:
+    """A candidate centreline straight from one contour edge."""
+
+    start: Point2D
+    end: Point2D
+    stroke_id: int
+    confidence: float = 1.0
+    half_width: float = 1.0
+
+    @property
+    def length(self) -> float:
+        return self.start.distance_to(self.end)
+
+    @property
+    def angle_deg(self) -> float:
+        return math.degrees(
+            math.atan2(self.end.y - self.start.y, self.end.x - self.start.x)
+        ) % 180.0
+
+    @property
+    def orientation(self) -> str:
+        return classify_orientation(self.end.x - self.start.x, self.end.y - self.start.y)
+
+    def key(self) -> tuple[int, int]:
+        """Quantised orientation bucket for collinear grouping."""
+        angle = self.angle_deg
+        # Snap near-axis-aligned strokes so that rounding noise does not split
+        # the same physical wall into several orientation groups.
+        if angle < 12.5 or angle >= 172.5:
+            angle = 0.0
+        elif 77.5 <= angle < 102.5:
+            angle = 90.0
+        return (round(angle / 5.0), self.orientation == "vertical")
+
+
+def find_stroke_contours(
+    binary: np.ndarray, min_area: int = 40, max_area_ratio: float = 0.60
+) -> list[np.ndarray]:
+    """Find contours of individual ink strokes.
+
+    Walls in a plan meet at corners, so every stroke belongs to one connected
+    component and ``findContours`` returns the whole building outline. Splitting
+    the skeleton into individual strokes and dilating each one by roughly the
+    wall thickness recovers the strokes individually, which is what the wall
+    geometry is made of.
+
+    Args:
+        binary: Binary ink mask (255 = ink).
+        min_area: Discard contours smaller than this.
+        max_area_ratio: Discard contours occupying more than this fraction of
+            the image, which are almost always fills or photos rather than walls.
+
+    Returns:
+        A list of contours.
+    """
+    image_area = binary.shape[0] * binary.shape[1]
+    raw, _ = cv2.findContours(binary, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
+
+    kept = []
+    for contour in raw:
+        area = cv2.contourArea(contour)
+        if area < min_area or area > image_area * max_area_ratio:
+            continue
+        if len(contour) < 2:
+            continue
+        kept.append(contour)
+
+    logger.debug("Found %d raw contours", len(kept))
+    return kept
+
+
+def _estimate_stroke_width(binary: np.ndarray) -> float:
+    """Robustly estimate stroke width via the distance transform.
+
+    The plain median of the distance transform is biased low by the long thin
+    tail produced where strokes meet at corners. Taking the 75th percentile
+    instead tracks the body of the distribution, which is the wall width.
+    """
+    inverted = cv2.distanceTransform(binary, cv2.DIST_L2, 3)
+    samples = inverted[inverted > 0]
+    if samples.size == 0:
+        return 1.0
+    # Each pixel's distance to the nearest background is ~half its stroke width.
+    return max(1.0, float(np.percentile(samples, 75)) * 2.0)
+
+
+def _junction_mask(skeleton: np.ndarray) -> np.ndarray:
+    """Locate pixels on a skeleton that have more than two neighbours.
+
+    Wall strokes meet here. A pixel with three or more 8-connected neighbours
+    is a junction, and thinning there would otherwise fuse every stroke of the
+    building into one component.
+    """
+    kernel = np.ones((3, 3), np.uint8)
+    # Normalise to 0/1 first: with 0/255 pixels a correlation would return
+    # 255 * count, which is not a neighbour count and swamps the comparison.
+    skeleton01 = (skeleton > 0).astype(np.uint8)
+    # Signed output so subtracting the centre cannot wrap around.
+    neighbours = cv2.filter2D(
+        skeleton01, cv2.CV_16S, kernel, borderType=cv2.BORDER_CONSTANT
+    ).astype(np.int32)
+    # filter2D includes the centre pixel, so subtract it back out.
+    neighbours -= skeleton01.astype(np.int32)
+    return (neighbours >= 3).astype(np.uint8) * 255
+
+
+def split_strokes(binary: np.ndarray, tolerance: float = 1.0) -> list[np.ndarray]:
+    """Split a connected ink component into individual wall strokes.
+
+    Walls in a plan meet at corners and T-junctions, so the raw ink - and the
+    skeleton of it - form one connected component for the whole building. The
+    skeleton is therefore broken at every junction pixel before connected
+    components are taken, which yields one component per wall run. Each is
+    then dilated back out and clipped to the ink it actually covers.
+
+    Args:
+        binary: Binary ink mask.
+        tolerance: Extra dilation, in pixels, when rebuilding each stroke.
+
+    Returns:
+        A list of binary masks, one per stroke.
+    """
+    if not hasattr(cv2, "ximgproc"):
+        # Without the contrib module there is no thinning, so fall back to the
+        # raw mask: strokes stay connected but their contours remain usable.
+        logger.info("ximgproc unavailable; using raw ink contours as strokes")
+        return [binary]
+
+    skeleton = cv2.ximgproc.thinning(binary)
+
+    junctions = _junction_mask(skeleton)
+    if np.any(junctions):
+        # Cut a short gap at each junction rather than deleting the pixel
+        # itself: the pixel is still needed to connect the corner where two
+        # walls genuinely meet, and removing it shreds strokes into stubs.
+        junction_band = cv2.dilate(junctions, np.ones((3, 3), np.uint8))
+        broken = cv2.subtract(skeleton, cv2.erode(junction_band, np.ones((3, 3), np.uint8)))
+    else:
+        broken = skeleton
+
+    width = _estimate_stroke_width(binary)
+    radius = max(1, int(round(width * 0.35)) + int(round(tolerance)))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * radius + 1,) * 2)
+
+    strokes: list[np.ndarray] = []
+    count, labels = cv2.connectedComponents(broken, connectivity=8)
+
+    for label in range(1, count):
+        component = (labels == label).astype(np.uint8) * 255
+        dilated = cv2.dilate(component, kernel)
+        # Keep only the ink this stroke actually covers.
+        stroke = cv2.bitwise_and(dilated, binary)
+        area = int(np.count_nonzero(stroke))
+        if area >= max(40, int(width * width * 2)):
+            strokes.append(stroke)
+
+    logger.debug(
+        "Split into %d strokes (width %.1fpx, %d junctions)",
+        len(strokes),
+        width,
+        int(np.count_nonzero(junctions)),
+    )
+    return strokes
+
+
+def stroke_contours(
+    binary: np.ndarray, min_area: int = 40
+) -> list[np.ndarray]:
+    """Contours of every individual wall stroke."""
+    contours: list[np.ndarray] = []
+    for mask in split_strokes(binary):
+        found, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in found:
+            if cv2.contourArea(contour) >= min_area:
+                contours.append(contour)
+    return contours
+
+
+def _simplify(contour: np.ndarray, min_edge_length: float) -> list[np.ndarray]:
+    """Simplify a contour, dropping edges that are too short to be walls."""
+    perimeter = cv2.arcLength(contour, closed=True)
+    if perimeter <= 0:
+        return []
+
+    # Try progressively finer approximations until edges become too short.
+    for factor in (0.01, 0.005, 0.002, 0.001):
+        epsilon = factor * perimeter
+        approx = cv2.approxPolyDP(contour, epsilon, closed=True)
+        edges = []
+        points = approx.reshape(-1, 2)
+        for i in range(len(points)):
+            p0 = points[i]
+            p1 = points[(i + 1) % len(points)]
+            if math.dist(p0, p1) >= min_edge_length:
+                edges.append(np.array([p0, p1], dtype=np.float64))
+        if edges:
+            return edges
+    return []
+
+
+def _dominant_edges(
+    contour: np.ndarray, min_edge_length: float
+) -> list[np.ndarray]:
+    """Long edges of a simplified contour, longest first."""
+    edges = _simplify(contour, min_edge_length)
+    edges.sort(key=lambda edge: math.dist(edge[0], edge[1]), reverse=True)
+    return edges
+
+
+def _face_centerline(
+    contour: np.ndarray, min_edge_length: float
+) -> StrokeCandidate | None:
+    """Derive a stroke's centreline from the two long parallel faces.
+
+    A wall stroke is a thick line, so its contour has two long, parallel,
+    oppositely-facing edges. Their midpoint is the true centreline. Taking a
+    raw contour edge instead would place the wall on one of its two faces,
+    which is how adjacent walls end up looking duplicated.
+    """
+    edges = _dominant_edges(contour, min_edge_length)
+    if not edges:
+        return None
+
+    primary = edges[0]
+    primary_len = math.dist(primary[0], primary[1])
+    if primary_len < min_edge_length:
+        return None
+
+    best_pair: tuple[np.ndarray, np.ndarray] | None = None
+    for other in edges[1:]:
+        other_len = math.dist(other[0], other[1])
+        if other_len < primary_len * 0.6:
+            break
+        a = _angle_between(primary, other)
+        if a > 8.0:
+            continue
+        offset = _perpendicular_offset(primary, other)
+        if offset <= 1.0:
+            continue
+        best_pair = (primary, other)
+        break
+
+    if best_pair is None:
+        # Not a two-faced stroke: the longest edge is the best estimate.
+        return StrokeCandidate(
+            start=Point2D(x=float(primary[0][0]), y=float(primary[0][1])),
+            end=Point2D(x=float(primary[1][0]), y=float(primary[1][1])),
+            stroke_id=-1,
+        )
+
+    first, second = best_pair
+    p0, p1 = _ordered_pair(first)
+    q0, q1 = _ordered_pair(second)
+
+    start = Point2D(x=(p0[0] + q0[0]) / 2.0, y=(p0[1] + q0[1]) / 2.0)
+    end = Point2D(x=(p1[0] + q1[0]) / 2.0, y=(p1[1] + q1[1]) / 2.0)
+    return StrokeCandidate(start=start, end=end, stroke_id=-1)
+
+
+def _ordered_pair(edge: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Return the edge endpoints ordered along the first edge's direction."""
+    p0, p1 = edge[0], edge[1]
+    if math.dist(p0, p1) == 0:
+        return p0, p1
+    return (p0, p1)
+
+
+def _angle_between(a: np.ndarray, b: np.ndarray) -> float:
+    """Acute angle in degrees between two edges."""
+    angle_a = math.degrees(math.atan2(a[1][1] - a[0][1], a[1][0] - a[0][0])) % 180.0
+    angle_b = math.degrees(math.atan2(b[1][1] - b[0][1], b[1][0] - b[0][0])) % 180.0
+    diff = abs(angle_a - angle_b)
+    return min(diff, 180.0 - diff)
+
+
+def _perpendicular_offset(primary: np.ndarray, other: np.ndarray) -> float:
+    """Distance from ``other``'s midpoint to the infinite line of ``primary``."""
+    dx = primary[1][0] - primary[0][0]
+    dy = primary[1][1] - primary[0][1]
+    length = math.hypot(dx, dy)
+    if length < 1e-9:
+        return 0.0
+    mx = (other[0][0] + other[1][0]) / 2.0
+    my = (other[0][1] + other[1][1]) / 2.0
+    return abs(dy * (mx - primary[0][0]) - dx * (my - primary[0][1])) / length
+
+
+def stroke_candidates(
+    binary: np.ndarray,
+    *,
+    min_edge_length: float = 20.0,
+    min_stroke_area: int = 40,
+) -> list[StrokeCandidate]:
+    """Extract candidate centrelines from every stroke contour."""
+    candidates: list[StrokeCandidate] = []
+
+    for stroke_id, contour in enumerate(stroke_contours(binary)):
+        candidate = _face_centerline(contour, min_edge_length)
+        if candidate is None:
+            continue
+        if candidate.length < min_edge_length:
+            continue
+        candidates.append(
+            StrokeCandidate(
+                start=candidate.start,
+                end=candidate.end,
+                stroke_id=stroke_id,
+            )
+        )
+
+    logger.info("Extracted %d candidate centerline segments", len(candidates))
+    return candidates
+
+
+def _collinear_merge(
+    candidates: list[StrokeCandidate], tolerance: float, gap_tolerance: float
+) -> list[StrokeCandidate]:
+    """Merge segments that share a direction and lie on the same infinite line."""
+    groups: dict[tuple[int, int], list[StrokeCandidate]] = {}
+    for candidate in candidates:
+        groups.setdefault(candidate.key(), []).append(candidate)
+
+    merged: list[StrokeCandidate] = []
+
+    for group in groups.values():
+        remaining = list(group)
+        while remaining:
+            seed = remaining.pop(0)
+            cluster = [seed]
+            changed = True
+            while changed:
+                changed = False
+                for other in list(remaining):
+                    for member in cluster:
+                        if _on_same_line(member, other, tolerance):
+                            cluster.append(other)
+                            remaining.remove(other)
+                            changed = True
+                            break
+                    else:
+                        continue
+                    break
+            merged.append(_collapse_cluster(cluster, gap_tolerance))
+
+    return merged
+
+
+def _on_same_line(a: StrokeCandidate, b: StrokeCandidate, tolerance: float) -> bool:
+    """Whether two segments lie on the same infinite line within tolerance."""
+    angle_diff = abs(a.angle_deg - b.angle_deg)
+    angle_diff = min(angle_diff, 180.0 - angle_diff)
+    if angle_diff > 5.0:
+        return False
+
+    dx, dy = math.cos(math.radians(a.angle_deg)), math.sin(math.radians(a.angle_deg))
+    distance = abs((b.start.x - a.start.x) * dy - (b.start.y - a.start.y) * dx)
+    return distance <= tolerance
+
+
+def _collapse_cluster(
+    cluster: list[StrokeCandidate], gap_tolerance: float
+) -> StrokeCandidate:
+    """Reduce a collinear cluster to one segment spanning its extremes."""
+    points: list[Point2D] = []
+    for candidate in cluster:
+        points.extend([candidate.start, candidate.end])
+
+    best = (0.0, points[0], points[1])
+    for i, p0 in enumerate(points):
+        for p1 in points[i + 1 :]:
+            distance = p0.distance_to(p1)
+            if distance > best[0]:
+                best = (distance, p0, p1)
+
+    # Order endpoints along the dominant direction.
+    start, end = best[1], best[2]
+    if end.x < start.x or (end.x == start.x and end.y < start.y):
+        start, end = end, start
+
+    return StrokeCandidate(
+        start=start,
+        end=end,
+        stroke_id=cluster[0].stroke_id,
+        confidence=min(member.confidence for member in cluster),
+    )
+
+
+def _dedupe_overlapping(
+    segments: list[StrokeCandidate], overlap_ratio: float
+) -> list[StrokeCandidate]:
+    """Drop segments that are almost entirely contained in another."""
+    kept: list[StrokeCandidate] = []
+
+    for segment in sorted(segments, key=lambda s: s.length, reverse=True):
+        redundant = False
+        for existing in kept:
+            shared = _shared_length(segment, existing)
+            if shared / segment.length > overlap_ratio:
+                redundant = True
+                break
+        if not redundant:
+            kept.append(segment)
+
+    return kept
+
+
+def _shared_length(a: StrokeCandidate, b: StrokeCandidate) -> float:
+    """Approximate length of the 1-D overlap between two collinear segments.
+
+    Segments on different parallel lines share no length at all, so collinearity
+    is checked first; without this, a wall and the opposite wall of the same
+    room would be treated as duplicates of one another.
+    """
+    if not _on_same_line(a, b, 1.0):
+        return 0.0
+
+    lo = max(min(a.start.x, a.end.x), min(b.start.x, b.end.x))
+    hi = min(max(a.start.x, a.end.x), max(b.start.x, b.end.x))
+    overlap_x = max(0.0, hi - lo)
+    if overlap_x <= 0:
+        return 0.0
+    return overlap_x / max(abs(math.cos(math.radians(a.angle_deg))), 1e-6)
+
+
+def measure_thickness(
+    binary: np.ndarray, start: Point2D, end: Point2D, max_probe: float = 60.0
+) -> float | None:
+    """Measure wall thickness by probing perpendicular to the centreline.
+
+    Walks outward from the centreline along the normal and records the extent
+    of contiguous ink. Returns ``None`` when the probe finds no ink or the run
+    is implausibly wide, which indicates the line is not on a wall stroke.
+    """
+    length = start.distance_to(end)
+    if length < 1e-6:
+        return None
+
+    ux = (end.x - start.x) / length
+    uy = (end.y - start.y) / length
+    nx, ny = -uy, ux
+
+    center = start.midpoint(end)
+    height, width = binary.shape[:2]
+    total: list[float] = []
+
+    # Sample along the wall so we are not fooled by a local artefact.
+    samples = max(3, min(int(length / 8), 25))
+    for i in range(samples):
+        t = (i + 0.5) / samples
+        px = center.x + (t - 0.5) * (end.x - start.x)
+        py = center.y + (t - 0.5) * (end.y - start.y)
+
+        for sign in (1.0, -1.0):
+            run = 0.0
+            step = 1.0
+            while run < max_probe:
+                qx = int(round(px + sign * nx * (run + step)))
+                qy = int(round(py + sign * ny * (run + step)))
+                if not (0 <= qx < width and 0 <= qy < height):
+                    break
+                if binary[qy, qx] == 0:
+                    break
+                run += step
+            if run > 0:
+                total.append(run)
+
+    if not total:
+        return None
+
+    thickness = float(np.median(total)) * 2.0
+    # A wall thicker than this is almost certainly a fill or a furniture block.
+    if thickness <= 0 or thickness > max_probe:
+        return None
+    return round(thickness, 2)
+
+
+def detect_segments(
+    binary: np.ndarray,
+    *,
+    min_length: float = 30.0,
+    max_gap: float = 6.0,
+    threshold: float = 60.0,
+) -> list[StrokeCandidate]:
+    """Detect axis-aligned wall runs with the probabilistic Hough transform.
+
+    Floor plans are overwhelmingly made of horizontal and vertical strokes, and
+    a Hough transform recovers them directly from the ink mask. This is far
+    more reliable than reading centrelines off contour edges, because a
+    connected building outline yields one contour that wraps every wall, and
+    because a thick stroke's contour edges are its two *faces*, not its centre.
+
+    Args:
+        binary: Binary ink mask (255 = ink).
+        min_length: Shortest run accepted as a wall, in pixels.
+        max_gap: Gap bridged when joining collinear runs.
+        threshold: Hough accumulator threshold, in pixels.
+
+    Returns:
+        Candidate segments as raw detections.
+    """
+    width = _estimate_stroke_width(binary)
+
+    raw = cv2.HoughLinesP(
+        binary,
+        rho=1,
+        theta=np.pi / 180.0,
+        threshold=int(threshold),
+        minLineLength=int(min_length),
+        maxLineGap=int(max_gap),
+    )
+    if raw is None:
+        return []
+
+    segments: list[StrokeCandidate] = []
+    for entry in raw:
+        x1, y1, x2, y2 = (float(v) for v in entry.reshape(-1)[:4])
+        start = Point2D(x=x1, y=y1)
+        end = Point2D(x=x2, y=y2)
+        if start.distance_to(end) < min_length:
+            continue
+        # Keep the two faces of a thick stroke out; centring happens later.
+        segments.append(
+            StrokeCandidate(
+                start=start, end=end, stroke_id=-1, half_width=width / 2.0
+            )
+        )
+
+    logger.info("Hough transform produced %d raw segments", len(segments))
+    return segments
+
+
+def centre_on_stroke(
+    binary: np.ndarray, segment: StrokeCandidate
+) -> StrokeCandidate:
+    """Shift a segment onto the middle of the ink it lies on.
+
+    A Hough line locks onto a wall's edge. Stepping perpendicular until the
+    local ink run is centred moves it onto the true centreline.
+    """
+    length = segment.length
+    if length < 1e-6:
+        return segment
+
+    ux = (segment.end.x - segment.start.x) / length
+    uy = (segment.end.y - segment.start.y) / length
+    nx, ny = -uy, ux
+    center = segment.start.midpoint(segment.end)
+
+    best_symmetry = float("inf")
+    limit = max(4.0, segment.half_width * 2.0 + 2.0)
+
+    # Snap the answer to whole pixels: a 0.5px step lets a long wall accumulate
+    # a visible slant, which then stops it closing against its neighbours.
+    best_offset = 0.0
+    offset = -limit
+    while offset <= limit:
+        left, right = _ink_runs(binary, center, nx * offset, ny * offset, ux, uy, length)
+        if left > 0 and right > 0:
+            symmetry = abs(left - right)
+            if symmetry < best_symmetry:
+                best_symmetry = symmetry
+                best_offset = float(round(offset))
+        offset += 0.5
+
+    if best_symmetry == float("inf"):
+        return segment
+
+    return StrokeCandidate(
+        start=Point2D(
+            x=segment.start.x + nx * best_offset,
+            y=segment.start.y + ny * best_offset,
+        ),
+        end=Point2D(
+            x=segment.end.x + nx * best_offset,
+            y=segment.end.y + ny * best_offset,
+        ),
+        stroke_id=segment.stroke_id,
+        half_width=segment.half_width,
+    )
+
+
+def _ink_runs(
+    binary: np.ndarray,
+    center: Point2D,
+    dx: float,
+    dy: float,
+    ux: float,
+    uy: float,
+    length: float,
+    samples: int = 15,
+    limit: float = 40.0,
+) -> tuple[float, float]:
+    """Measure contiguous ink either side of a line, returning (left, right)."""
+    height, width = binary.shape[:2]
+    left_runs: list[float] = []
+    right_runs: list[float] = []
+
+    for i in range(samples):
+        t = (i + 0.5) / samples
+        px = center.x + ux * (t - 0.5) * length + dx
+        py = center.y + uy * (t - 0.5) * length + dy
+
+        for sign, bucket in ((1.0, left_runs), (-1.0, right_runs)):
+            run = 0.0
+            while run < limit:
+                qx = int(round(px + sign * (-uy) * run))
+                qy = int(round(py + sign * ux * run))
+                if not (0 <= qx < width and 0 <= qy < height):
+                    break
+                if binary[qy, qx] == 0:
+                    break
+                run += 1.0
+            if run > 0:
+                bucket.append(run)
+
+    left = float(np.median(left_runs)) if left_runs else 0.0
+    right = float(np.median(right_runs)) if right_runs else 0.0
+    return left, right
+
+
+def _snap_to_axis(segment: StrokeCandidate, tolerance: float = 8.0) -> StrokeCandidate:
+    """Snap a near-axis-aligned segment onto its exact axis.
+
+    A Hough segment that runs along a horizontal wall can still pick up a few
+    pixels of drift over its length, and merging several such segments makes
+    the drift worse. A wall that drifts never closes cleanly against its
+    neighbours, so the rooms behind it silently fail to polygonise.
+    """
+    if segment.length < 1e-6:
+        return segment
+
+    dx = segment.end.x - segment.start.x
+    dy = segment.end.y - segment.start.y
+    orientation = classify_orientation(dx, dy)
+    if orientation == "diagonal":
+        return segment
+
+    if orientation == "horizontal":
+        # Small residual slope counts as noise, not as a real angle.
+        if abs(dy) > abs(dx) * (tolerance / 100.0):
+            return segment
+        y = round((segment.start.y + segment.end.y) / 2.0)
+        return StrokeCandidate(
+            start=Point2D(x=segment.start.x, y=y),
+            end=Point2D(x=segment.end.x, y=y),
+            stroke_id=segment.stroke_id,
+            confidence=segment.confidence,
+            half_width=segment.half_width,
+        )
+
+    if abs(dx) > abs(dy) * (tolerance / 100.0):
+        return segment
+    x = round((segment.start.x + segment.end.x) / 2.0)
+    return StrokeCandidate(
+        start=Point2D(x=x, y=segment.start.y),
+        end=Point2D(x=x, y=segment.end.y),
+        stroke_id=segment.stroke_id,
+        confidence=segment.confidence,
+        half_width=segment.half_width,
+    )
+
+
+def extract_walls(
+    binary: np.ndarray,
+    *,
+    min_edge_length: float = 30.0,
+    merge_tolerance: float = 4.0,
+    gap_tolerance: float = 10.0,
+    overlap_ratio: float = 0.80,
+) -> list[Wall]:
+    """Extract wall centrelines with measured thickness from a binary mask.
+
+    Args:
+        binary: Binary ink mask.
+        min_edge_length: Minimum centreline length in pixels.
+        merge_tolerance: Perpendicular tolerance for merging collinear runs.
+        gap_tolerance: Smallest gap bridged when joining collinear runs.
+        overlap_ratio: Fraction of a segment that must be shared to drop it.
+
+    Returns:
+        A list of :class:`Wall` objects with pixel coordinates.
+    """
+    detected = detect_segments(binary, min_length=min_edge_length)
+    if not detected:
+        return []
+
+    # Merge collinear runs *before* centring. A door or window splits one wall
+    # into several Hough segments that each sit on their own fragment's edge;
+    # centring them individually would leave the wall as a band several pixels
+    # thick and would hide the opening from the gap detector.
+    merged = _collinear_merge(detected, merge_tolerance, gap_tolerance)
+    merged = [_snap_to_axis(segment) for segment in merged]
+
+    candidates = [centre_on_stroke(binary, segment) for segment in merged]
+
+    deduped = _dedupe_overlapping(candidates, overlap_ratio)
+    deduped = [s for s in deduped if s.length >= min_edge_length]
+
+    # Order deterministically: vertical walls left to right, then horizontal.
+    deduped.sort(
+        key=lambda s: (s.orientation != "vertical", round(s.start.x), round(s.start.y))
+    )
+
+    walls: list[Wall] = []
+    for index, segment in enumerate(deduped):
+        thickness = measure_thickness(binary, segment.start, segment.end)
+        walls.append(
+            Wall(
+                id=f"wall_{index + 1:03d}",
+                start=segment.start,
+                end=segment.end,
+                thickness=thickness,
+                confidence=segment.confidence,
+            )
+        )
+
+    logger.info(
+        "Extracted %d walls (median thickness %s)",
+        len(walls),
+        _median_thickness(walls),
+    )
+    return walls
+
+
+def _median_thickness(walls: list[Wall]) -> str:
+    values = [w.thickness for w in walls if w.thickness]
+    if not values:
+        return "n/a"
+    return f"{np.median(values):.1f}px"
+
+
+def project_ink_profile(
+    binary: np.ndarray, wall: Wall, samples: int | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """Project the ink mask onto a wall's axis.
+
+    Returns:
+        ``(positions, has_ink)`` where ``positions`` are distances in pixels
+        along the wall from ``wall.start`` and ``has_ink`` is a boolean array
+        indicating wall material at each position. Door and window openings
+        are exactly the runs where this is ``False``.
+    """
+    length = wall.length
+    if length < 1e-6:
+        return np.zeros(0, dtype=float), np.zeros(0, dtype=bool)
+
+    if samples is None:
+        samples = max(2, int(length))
+
+    dx = (wall.end.x - wall.start.x) / length
+    dy = (wall.end.y - wall.start.y) / length
+
+    height, width = binary.shape[:2]
+    positions = np.linspace(0.0, length, samples)
+    has_ink = np.zeros(samples, dtype=bool)
+
+    thickness = wall.thickness or 3.0
+    # Search a band around the centreline, wide enough to tolerate imperfect
+    # centrelines but tight enough not to pick up a parallel wall.
+    band = max(2, int(round(thickness)))
+    offsets = range(-band, band + 1)
+
+    for index, position in enumerate(positions):
+        cx = wall.start.x + dx * position
+        cy = wall.start.y + dy * position
+        nx, ny = -dy, dx
+
+        found = False
+        for offset in offsets:
+            qx = int(round(cx + nx * offset))
+            qy = int(round(cy + ny * offset))
+            if 0 <= qx < width and 0 <= qy < height and binary[qy, qx] != 0:
+                found = True
+                break
+        has_ink[index] = found
+
+    return positions, has_ink

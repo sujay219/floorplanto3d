@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "floorplanto3d"
+version = "0.1.0"
+description = "Modern floor plan to 3D geometry library"
+readme = "README.md"
+requires-python = ">=3.14"
+license = {text = "MIT"}
+authors = [
+    {name = "Home AI"}
+]
+dependencies = [
+    "opencv-contrib-python-headless>=4.10.0",
+    "numpy>=2.0.0",
+    "Pillow>=10.0.0",
+    "pydantic>=2.0.0",
+    "shapely>=2.0.0",
+]
+
+[project.optional-dependencies]
+api = [
+    "fastapi>=0.115.0",
+    "uvicorn>=0.30.0",
+    "python-multipart>=0.0.9",
+]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.6.0",
+    "httpx2>=0.1.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+target-version = "py314"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+filterwarnings = ["error::DeprecationWarning"]

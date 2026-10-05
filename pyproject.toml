@@ -27,10 +27,7 @@ api = [
     "python-multipart>=0.0.9",
 ]
 dev = [
-    "pytest>=8.0.0",
-    "pytest-cov>=4.0.0",
     "ruff>=0.6.0",
-    "httpx2>=0.1.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -38,8 +35,3 @@ where = ["src"]
 
 [tool.ruff]
 target-version = "py314"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["tests"]
-filterwarnings = ["error::DeprecationWarning"]

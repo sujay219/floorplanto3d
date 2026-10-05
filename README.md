@@ -47,13 +47,3 @@ curl -X POST -F "image=@floorplan.png" http://localhost:8000/process-floorplan
 
 - `GET /health` - Health check
 - `POST /process-floorplan` - Process floor plan image
-
-## Development
-
-```bash
-# Run tests
-pytest
-
-# Run with coverage
-pytest --cov=floorplanto3d
-```

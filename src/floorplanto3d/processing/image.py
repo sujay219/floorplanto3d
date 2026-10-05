@@ -123,8 +123,3 @@ def _open(source: str | Path | bytes | bytearray | Image.Image) -> Image.Image:
         raise InvalidImageError(f"Could not read image: {exc}") from exc
 
 
-def encode_png(array: np.ndarray) -> bytes:
-    """Encode an RGB array as PNG bytes. Used by tests and fixtures."""
-    buffer = io.BytesIO()
-    Image.fromarray(array).save(buffer, format="PNG")
-    return buffer.getvalue()

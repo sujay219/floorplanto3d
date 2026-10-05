@@ -26,11 +26,15 @@ from floorplanto3d.models.floor_plan import (
     ImageInfo,
     Units,
 )
-from floorplanto3d.processing.image import DEFAULT_MAX_DIMENSION, DEFAULT_MAX_PIXELS, load_image
+from floorplanto3d.processing.image import (
+    DEFAULT_MAX_DIMENSION,
+    DEFAULT_MAX_PIXELS,
+    load_image,
+)
 from floorplanto3d.processing.openings import extract_openings
 from floorplanto3d.processing.preprocessing import preprocess
 from floorplanto3d.processing.rooms import extract_rooms
-from floorplanto3d.processing.scale import build_scale, target_units
+from floorplanto3d.processing.scale import build_scale, scale_floor_plan
 from floorplanto3d.processing.walls import extract_walls
 
 logger = logging.getLogger(__name__)
@@ -233,8 +237,6 @@ class FloorPlanProcessor:
         )
 
         floor_plan = FloorPlan(
-            units=target_units(scale),
-            scale=scale,
             image=ImageInfo(
                 width=width,
                 height=height,
@@ -247,6 +249,10 @@ class FloorPlanProcessor:
             openings=[*doors, *windows],
             diagnostics=diagnostics,
         )
+
+        # Detection runs in image pixels; convert once here so the document is
+        # emitted in real-world units whenever a scale is known.
+        floor_plan = scale_floor_plan(floor_plan, scale)
 
         logger.info(
             "Pipeline complete in %.1fms: %d walls, %d rooms, %d doors, %d windows",

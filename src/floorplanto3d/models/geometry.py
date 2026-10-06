@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
@@ -153,7 +153,7 @@ class BoundingBox(BaseModel):
         ]
 
 
-class Orientation(str, Enum):
+class Orientation(StrEnum):
     """Coarse classification of a wall's direction."""
 
     HORIZONTAL = "horizontal"

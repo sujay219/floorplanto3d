@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -14,7 +14,7 @@ from floorplanto3d.models.wall import Wall
 SCHEMA_VERSION = "1.0"
 
 
-class Units(str, Enum):
+class Units(StrEnum):
     """Unit of measure for all coordinates in the document.
 
     ``PX`` means the source image carried no usable scale and all coordinates

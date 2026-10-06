@@ -1,11 +1,11 @@
 """Domain models for floor plan representation."""
 
 from floorplanto3d.models.floor_plan import (
+    SCHEMA_VERSION,
     Diagnostics,
     FloorPlan,
     ImageInfo,
     Scale,
-    SCHEMA_VERSION,
     Units,
 )
 from floorplanto3d.models.geometry import (

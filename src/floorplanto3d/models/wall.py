@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from floorplanto3d.models.geometry import Line2D, Point2D, classify_orientation
 

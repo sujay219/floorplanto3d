@@ -4,13 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "floorplanto3d"
-version = "0.1.0"
-description = "Modern floor plan to 3D geometry library"
+version = "0.2.0"
+description = "Convert floor plan images into renderer-independent 3D geometry"
 readme = "README.md"
 requires-python = ">=3.14"
 license = {text = "MIT"}
 authors = [
     {name = "Home AI"}
+]
+keywords = ["floor-plan", "computer-vision", "geometry", "architecture"]
+classifiers = [
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Image Processing",
 ]
 dependencies = [
     "opencv-contrib-python-headless>=4.10.0",
@@ -35,3 +40,8 @@ where = ["src"]
 
 [tool.ruff]
 target-version = "py314"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]

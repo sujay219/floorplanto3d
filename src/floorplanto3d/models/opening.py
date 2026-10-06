@@ -7,14 +7,14 @@ which is what a 3D engine needs in order to cut a hole.
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel
 
 from floorplanto3d.models.geometry import Point2D
 
 
-class OpeningType(str, Enum):
+class OpeningType(StrEnum):
     DOOR = "door"
     WINDOW = "window"
 

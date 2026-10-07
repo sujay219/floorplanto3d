@@ -4,6 +4,7 @@ import { BabylonRenderer } from '@home-ai/renderer';
 import type { Scene } from '@home-ai/scene-schema';
 import { developmentScene } from './mock-scene';
 import { processFloorPlanImage } from './floorplan';
+import './styles.css';
 
 type Status = 'idle' | 'processing' | 'ready' | 'error';
 
@@ -190,50 +191,55 @@ const App = () => {
   };
 
   return (
-    <main style={{ padding: '1.5rem', fontFamily: 'sans-serif', maxWidth: '1240px', margin: '0 auto' }}>
-      <h1>Home AI</h1>
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap', alignItems: 'center' }}>
-        <button onClick={handleUploadClick} disabled={status === 'processing'}>
-          Upload Floor Plan
-        </button>
-        <button onClick={handleReset} disabled={status === 'processing'}>
-          Reset
-        </button>
-        <button onClick={handleResetCamera} disabled={cameraMode === 'eagle' || status === 'processing'}>
-          Reset to Eagle View
-        </button>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*"
-          style={{ display: 'none' }}
-          onChange={(event) => void handleFileChange(event)}
-        />
-        {status === 'processing' ? <span style={{ color: '#1d4ed8' }}>Processing floor plan…</span> : null}
-        {status === 'ready' ? <span style={{ color: '#15803d' }}>Floor plan loaded.</span> : null}
-      </div>
-      {error ? <p style={{ color: 'crimson' }}>{error}</p> : null}
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'stretch' }}>
-        <aside
-          style={{
-            width: '92px',
-            padding: '1rem 0.75rem',
-            borderRadius: '16px',
-            border: '1px solid #d1d5db',
-            background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)',
-            boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.05)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            minHeight: '520px',
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#4b5563' }}>
-            Zoom
+    <main className="app">
+      <header className="topbar">
+        <div className="brand">
+          <h1>Home AI</h1>
+          <p className="tagline">Floor plan to 3D</p>
+        </div>
+        <div className="actions">
+          <button type="button" className="btn btn-primary" onClick={handleUploadClick} disabled={status === 'processing'}>
+            Upload floor plan
+          </button>
+          <button type="button" className="btn" onClick={handleReset} disabled={status === 'processing'}>
+            Reset scene
+          </button>
+          <button
+            type="button"
+            className="btn"
+            onClick={handleResetCamera}
+            disabled={cameraMode === 'eagle' || status === 'processing'}
+          >
+            Reset camera
+          </button>
+          <div className={`status status-${status}`} role="status" aria-live="polite">
+            <span className="status-dot" aria-hidden="true" />
+            {status === 'processing' ? 'Processing floor plan…' : null}
+            {status === 'ready' ? 'Floor plan ready' : null}
+            {status === 'idle' ? 'Sample scene loaded.' : null}
+            {status === 'error' ? 'Processing failed' : null}
           </div>
           <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(event) => void handleFileChange(event)}
+          />
+        </div>
+      </header>
+      {error ? (
+        <div className="alert" role="alert">
+          <span>{error}</span>
+          <span>Upload another floor plan image to try again.</span>
+        </div>
+      ) : null}
+      <div className="workspace">
+        <aside className="rail">
+          <span className="rail-label">Zoom</span>
+          <input
             aria-label="Zoom"
+            className="zoom-slider"
             type="range"
             min={400}
             max={8000}
@@ -244,37 +250,18 @@ const App = () => {
               setZoom(nextZoom);
               rendererRef.current?.setZoom(nextZoom);
             }}
-            style={{
-              width: '28px',
-              height: '420px',
-              writingMode: 'vertical-rl',
-              direction: 'rtl',
-              WebkitAppearance: 'slider-vertical',
-              accentColor: '#3b82f6',
-              cursor: 'ns-resize',
-            }}
           />
-          <div style={{ fontSize: '1.35rem', fontWeight: 700, color: '#111827', lineHeight: 1 }}>
-            {Math.round(zoom)}
-          </div>
+          <output className="zoom-value">{Math.round(zoom)}</output>
         </aside>
-        <section style={{ display: 'flex', flex: 1, flexDirection: 'column', gap: '0.75rem' }}>
-          <canvas
-            ref={canvasRef}
-            style={{
-              width: '100%',
-              height: '570px',
-              borderRadius: '12px',
-              border: '1px solid #d1d5db',
-              background: '#e5e7eb',
-              display: 'block',
-              flex: 1,
-            }}
-          />
+        <section className="viewport">
+          <canvas ref={canvasRef} aria-label="3D scene viewport" />
+          <footer className="statusbar">
+            <span>
+              <strong>{scene ? scene.rooms.length : 0}</strong> {scene && scene.rooms.length === 1 ? 'room' : 'rooms'}
+            </span>
+            <span>{cameraMode === 'eagle' ? 'Eagle view' : 'Corner view'}</span>
+          </footer>
         </section>
-      </div>
-      <div style={{ marginTop: '0.75rem' }}>
-        <strong>Scene status:</strong> {scene ? `${scene.rooms.length} room(s)` : 'loading...'}
       </div>
     </main>
   );

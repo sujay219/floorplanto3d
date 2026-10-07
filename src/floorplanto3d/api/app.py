@@ -14,6 +14,7 @@ from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from floorplanto3d.errors import (
@@ -94,6 +95,17 @@ def create_app(*, fail_on_empty: bool = False) -> FastAPI:
             "wall centrelines, measured thicknesses, openings and room polygons."
         ),
         lifespan=lifespan,
+    )
+
+    # The service is consumed by a browser frontend on a separate origin, so it
+    # must allow cross-origin requests. It is a stateless, unauthenticated
+    # processing endpoint, hence the permissive CORS policy.
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
 
     @application.exception_handler(FloorPlanError)

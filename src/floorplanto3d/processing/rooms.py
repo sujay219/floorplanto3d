@@ -21,6 +21,8 @@ from floorplanto3d.models.wall import Wall
 
 logger = logging.getLogger(__name__)
 
+_EXTENSION_OVERSHOOT = 0.25
+
 
 @dataclass
 class RoomCandidate:
@@ -97,7 +99,9 @@ def extend_walls_to_intersections(
     Hough runs stop at the edge of the ink they trace, so a vertical divider
     stops half a wall-thickness short of the horizontal wall it joins. Extending
     each endpoint to the crossing point (capped at ``max_extension``) lets
-    ``polygonize`` actually close the room.
+    ``polygonize`` actually close the room. Extensions overshoot the crossing
+    by a hair so the pair forms a true crossing that noding cannot miss; the
+    overshoot is trimmed back by ``unary_union``.
     """
     extended: list[Wall] = []
 
@@ -136,6 +140,14 @@ def extend_walls_to_intersections(
                     best = point
 
             if best is not None:
+                if base.distance_to(best) > 1e-9:
+                    # A T-junction that only touches the partner within float
+                    # noise is invisible to exact noding; a slight overshoot
+                    # turns it into a real crossing that is then trimmed.
+                    best = Point2D(
+                        x=best.x + dx * _EXTENSION_OVERSHOOT,
+                        y=best.y + dy * _EXTENSION_OVERSHOOT,
+                    )
                 if sign < 0:
                     start = best
                 else:
@@ -248,8 +260,11 @@ def extract_rooms(
         logger.info("Fewer than 3 walls; skipping room detection")
         return []
 
-    walls = extend_walls_to_intersections(walls)
+    # Snap first so extensions are computed against the final wall positions:
+    # extending before snapping lets a later snap pull a joined wall a fraction
+    # of a pixel away from a T-junction and reopen the graph.
     walls = snap_wall_endpoints(walls)
+    walls = extend_walls_to_intersections(walls)
     segments = _node_walls(walls)
     faces = list(polygonize(segments))
     if not faces:

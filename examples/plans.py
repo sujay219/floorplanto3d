@@ -44,8 +44,8 @@ def blank_plan(width: int = 400, height: int = 300) -> np.ndarray:
     return np.full((height, width), 255, dtype=np.uint8)
 
 
-def skewed_plan(thickness: int = 8, angle: float = 3.0) -> np.ndarray:
-    """A two-room plan rotated by a small angle, to exercise deskewing."""
+def skewed_plan(thickness: int = 8, angle: float = 10.0) -> np.ndarray:
+    """A two-room plan rotated and keystoned, to exercise rectification."""
     canvas = two_room_plan(thickness)
     height, width = canvas.shape
     center = (width / 2, height / 2)
@@ -53,10 +53,31 @@ def skewed_plan(thickness: int = 8, angle: float = 3.0) -> np.ndarray:
     border = int(np.ceil(max(width, height) * 0.5))
     matrix[0, 2] += border - center[0]
     matrix[1, 2] += border - center[1]
-    return cv2.warpAffine(
+    rotated = cv2.warpAffine(
         canvas,
         matrix,
         (width + 2 * border, height + 2 * border),
+        flags=cv2.INTER_LINEAR,
+        borderValue=255,
+    )
+
+    # Slight keystone so the outline is a trapezoid, not just a rotated
+    # rectangle: the right edge is shorter than the left one.
+    height, width = rotated.shape
+    src = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
+    dst = np.float32(
+        [
+            [0.05 * width, 0.06 * height],
+            [0.95 * width, 0.11 * height],
+            [0.93 * width, 0.95 * height],
+            [0.06 * width, 0.92 * height],
+        ]
+    )
+    matrix = cv2.getPerspectiveTransform(src, dst)
+    return cv2.warpPerspective(
+        rotated,
+        matrix,
+        (width, height),
         flags=cv2.INTER_LINEAR,
         borderValue=255,
     )

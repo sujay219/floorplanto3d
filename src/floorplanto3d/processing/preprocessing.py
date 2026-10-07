@@ -1,4 +1,4 @@
-"""Image preprocessing: binarisation and deskewing."""
+"""Image preprocessing: binarisation, rectification and deskewing."""
 
 from __future__ import annotations
 
@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
+
+from floorplanto3d.processing.rectify import rectify_image
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +22,9 @@ class PreprocessResult:
     scale: float = 1.0
     rotation_deg: float = 0.0
     deskewed: bool = False
+    rectified: bool = False
+    quad: np.ndarray | None = None
+    homography: np.ndarray | None = None
     warnings: list[str] = field(default_factory=list)
 
 
@@ -81,10 +86,24 @@ def rotate(gray: np.ndarray, angle_deg: float) -> np.ndarray:
     )
 
 
+def _binarise(gray: np.ndarray, block_size: int, c: int) -> np.ndarray:
+    """Adaptive threshold into dark-ink-on-white."""
+    block_size = max(3, block_size | 1)  # must be odd and >= 3
+    return cv2.adaptiveThreshold(
+        gray,
+        maxValue=255,
+        adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        thresholdType=cv2.THRESH_BINARY_INV,
+        blockSize=block_size,
+        C=c,
+    )
+
+
 def preprocess(
     image: np.ndarray,
     *,
     deskew: bool = True,
+    rectify: bool = True,
     block_size: int = 15,
     c: int = 10,
 ) -> PreprocessResult:
@@ -93,9 +112,16 @@ def preprocess(
     Adaptive thresholding is used rather than a global Otsu threshold because
     scanned plans routinely contain both shaded and unshaded regions.
 
+    Skew is corrected before thresholding. When the plan has a rectangular
+    outline, the outline quadrilateral is warped onto an exact rectangle,
+    absorbing arbitrary rotation and perspective skew at once. Otherwise a
+    small global rotation is removed as a fallback.
+
     Args:
         image: RGB array.
-        deskew: Correct a small global rotation before thresholding.
+        deskew: Correct a small global rotation when rectification does not
+            apply.
+        rectify: Warp a detected rectangular outline onto an exact rectangle.
         block_size: Odd neighbourhood size for adaptive thresholding.
         c: Bias subtracted from the local mean.
 
@@ -109,7 +135,19 @@ def preprocess(
     gray = cv2.GaussianBlur(gray, (3, 3), 0)
 
     rotation_deg = 0.0
-    if deskew:
+    rectified = False
+    quad = None
+    homography = None
+
+    if rectify:
+        result = rectify_image(gray)
+        if result.applied:
+            gray = result.gray
+            rectified = True
+            quad = result.quad
+            homography = result.homography
+
+    if not rectified and deskew:
         rotation_deg = estimate_skew(gray)
         if abs(rotation_deg) >= 0.2:
             gray = rotate(gray, rotation_deg)
@@ -117,19 +155,14 @@ def preprocess(
         else:
             rotation_deg = 0.0
 
-    block_size = max(3, block_size | 1)  # must be odd and >= 3
-    binary = cv2.adaptiveThreshold(
-        gray,
-        maxValue=255,
-        adaptiveMethod=cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        thresholdType=cv2.THRESH_BINARY_INV,
-        blockSize=block_size,
-        C=c,
-    )
+    binary = _binarise(gray, block_size, c)
 
     ink_ratio = float(np.count_nonzero(binary)) / binary.size
     logger.info(
-        "Binarised: ink ratio %.3f, rotation %.2f deg", ink_ratio, rotation_deg
+        "Binarised: ink ratio %.3f, rotation %.2f deg, rectified %s",
+        ink_ratio,
+        rotation_deg,
+        rectified,
     )
 
     if ink_ratio > 0.6:
@@ -147,5 +180,8 @@ def preprocess(
         binary=binary,
         rotation_deg=rotation_deg,
         deskewed=abs(rotation_deg) >= 0.2,
+        rectified=rectified,
+        quad=quad,
+        homography=homography,
         warnings=warnings,
     )

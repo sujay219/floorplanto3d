@@ -1,4 +1,5 @@
 __pycache__/
+.commandcode/
 *.py[cod]
 *.egg-info/
 .venv/

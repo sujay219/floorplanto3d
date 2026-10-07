@@ -8,7 +8,7 @@ version = "0.2.0"
 description = "Convert floor plan images into renderer-independent 3D geometry"
 readme = "README.md"
 requires-python = ">=3.14"
-license = {text = "MIT"}
+license = {text = "Apache-2.0"}
 authors = [
     {name = "Home AI"}
 ]

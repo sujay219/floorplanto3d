@@ -7,6 +7,11 @@ from floorplanto3d.processing.openings import (
     find_gaps,
 )
 from floorplanto3d.processing.preprocessing import PreprocessResult, preprocess
+from floorplanto3d.processing.rectify import (
+    RectifyResult,
+    find_outline_quad,
+    rectify_image,
+)
 from floorplanto3d.processing.rooms import extract_rooms, room_adjacency
 from floorplanto3d.processing.scale import build_scale, convert_point, target_units
 from floorplanto3d.processing.walls import (
@@ -17,6 +22,7 @@ from floorplanto3d.processing.walls import (
 
 __all__ = [
     "PreprocessResult",
+    "RectifyResult",
     "build_scale",
     "classify_openings",
     "convert_point",
@@ -24,10 +30,12 @@ __all__ = [
     "extract_rooms",
     "extract_walls",
     "find_gaps",
+    "find_outline_quad",
     "load_image",
     "measure_thickness",
     "preprocess",
     "project_ink_profile",
+    "rectify_image",
     "room_adjacency",
     "target_units",
 ]

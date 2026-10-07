@@ -61,6 +61,7 @@ class FloorPlanProcessor:
         min_gap_length: float = 12.0,
         min_room_area: float = 400.0,
         deskew: bool = True,
+        rectify: bool = True,
         max_pixels: int = DEFAULT_MAX_PIXELS,
         max_dimension: int = DEFAULT_MAX_DIMENSION,
         fail_on_empty: bool = True,
@@ -72,6 +73,8 @@ class FloorPlanProcessor:
             min_gap_length: Shortest wall gap accepted as an opening, in pixels.
             min_room_area: Smallest polygonised face accepted as a room.
             deskew: Correct small global rotation before analysis.
+            rectify: Warp a rotated or keystoned rectangular outline onto an
+                exact rectangle before analysis.
             max_pixels: Reject images above this pixel count.
             max_dimension: Reject images with a side above this length.
             fail_on_empty: Raise when no wall is found instead of returning an
@@ -81,6 +84,7 @@ class FloorPlanProcessor:
         self.min_gap_length = min_gap_length
         self.min_room_area = min_room_area
         self.deskew = deskew
+        self.rectify = rectify
         self.max_pixels = max_pixels
         self.max_dimension = max_dimension
         self.fail_on_empty = fail_on_empty
@@ -187,8 +191,12 @@ class FloorPlanProcessor:
     ) -> FloorPlan:
         warnings: list[str] = []
 
-        pre = preprocess(array, deskew=self.deskew)
+        pre = preprocess(array, deskew=self.deskew, rectify=self.rectify)
         warnings.extend(pre.warnings)
+
+        # Rectification and rotation change the canvas, so all downstream
+        # geometry is expressed against the processed image dimensions.
+        width, height = pre.binary.shape[1], pre.binary.shape[0]
 
         walls = extract_walls(
             pre.binary,

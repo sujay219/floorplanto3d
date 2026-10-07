@@ -20,6 +20,10 @@ React, or any other renderer — you consume the JSON and build the scene howeve
 you like. The same document drives a WebGL viewer, a Blender import, or a
 headless geometry check.
 
+This repo ships one such consumer: [`home_ai/`](home_ai), a Babylon.js
+microservice that turns the JSON into an interactive 3D model. See
+[Running both services](#running-both-services) for the end-to-end flow.
+
 ## Why
 
 Floor plan images are everywhere, but extracting usable geometry from them is
@@ -208,6 +212,65 @@ Uploads are capped at **50 MB**. Accepted formats: PNG, JPEG, TIFF, BMP, GIF,
 WEBP (plus `application/octet-stream`, since some clients send a generic type —
 the bytes are still validated by the decoder).
 
+## Running both services
+
+The `home_ai/` microservice is the bundled 3D consumer: it takes the extracted
+geometry and renders it as an interactive Babylon.js model. To see a floor plan
+end to end, run both services.
+
+**1. Start FloorPlanTo3D** (serves the extraction API on port 8000):
+
+```bash
+.venv/bin/uvicorn floorplanto3d.api.app:app --host 0.0.0.0 --port 8000
+```
+
+**2. Start home_ai** (serves the 3D web app via Vite):
+
+```bash
+cd home_ai
+pnpm install
+pnpm dev
+```
+
+Open the Vite URL (default `http://localhost:5173`). On startup the app
+processes the bundled `windows.png` example; **Upload Floor Plan** runs the same
+flow for any image. If the API is not on `http://localhost:8000`, point the web
+app at it with `VITE_FLOORPLAN_URL` in `home_ai/web_app/.env`.
+
+### How both render a floor plan in reality
+
+```
+floor-plan image
+      │  POST /process-floorplan        (home_ai/web_app/src/floorplan.ts)
+      ▼
+FloorPlanTo3D :8000  →  floor plan JSON  (wall centrelines, openings, rooms)
+      │  floorplanToScene()              (home_ai/packages/scene-schema/src/floorplan.ts)
+      ▼
+canonical Scene (millimetres)
+      │  BabylonRenderer                 (home_ai/packages/renderer)
+      ▼
+interactive 3D model
+```
+
+1. **Upload.** The web app posts the image to `POST /process-floorplan`.
+2. **Extraction.** FloorPlanTo3D returns the JSON contract above — wall
+   centrelines with measured thickness, door/window openings each carrying its
+   host `wall_id`, and room polygons.
+3. **Scene adaptation.** `floorplanToScene` converts that document into the
+   canonical Scene model: coordinates are normalised to the origin and scaled to
+   millimetres (from the document's `units`, or `millimetersPerPixel` when the
+   output is in pixels), measured wall thickness is honoured, and only the
+   vertical values a top-down image cannot supply — room height, door height,
+   window height and sill — are filled from options.
+4. **Rendering.** `BabylonRenderer` builds the meshes: each wall centreline
+   becomes a box with its measured thickness, each wall is segmented around its
+   door/window openings so the gaps become real holes (lintels above doors,
+   sills below windows), and the model sits on a ground plane with an eagle-eye
+   camera and a first-person corner camera.
+
+The renderer is only the view — the Scene JSON stays the source of truth, so the
+same data can drive a different renderer without touching the extraction side.
+
 ## How it works
 
 ```
@@ -344,6 +407,7 @@ src/floorplanto3d/
 ├── processing/     image, preprocessing, rectify, walls, openings, rooms, scale
 └── serialization/  wire-format JSON
 examples/           synthetic plans and their generator
+home_ai/            3D consumer microservice (Babylon.js) that renders the JSON
 ```
 
 ## Limitations

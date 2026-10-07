@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Home AI Scene",
+  "type": "object",
+  "required": ["version", "units", "rooms"],
+  "properties": {
+    "version": { "type": "number" },
+    "units": { "type": "string", "enum": ["mm"] },
+    "rooms": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/room"
+      }
+    }
+  },
+  "$defs": {
+    "vector3": {
+      "type": "object",
+      "required": ["x", "y", "z"],
+      "properties": {
+        "x": { "type": "number" },
+        "y": { "type": "number" },
+        "z": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "dimensions": {
+      "type": "object",
+      "required": ["width", "depth", "height"],
+      "properties": {
+        "width": { "type": "number" },
+        "depth": { "type": "number" },
+        "height": { "type": "number" }
+      },
+      "additionalProperties": false
+    },
+    "wall": {
+      "type": "object",
+      "required": ["id", "start", "end"],
+      "properties": {
+        "id": { "type": "string" },
+        "start": { "$ref": "#/$defs/vector3" },
+        "end": { "$ref": "#/$defs/vector3" }
+      },
+      "additionalProperties": true
+    },
+    "object": {
+      "type": "object",
+      "required": ["id", "type", "position", "rotation", "dimensions"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "position": { "$ref": "#/$defs/vector3" },
+        "rotation": { "$ref": "#/$defs/vector3" },
+        "dimensions": { "$ref": "#/$defs/dimensions" }
+      },
+      "additionalProperties": true
+    },
+    "room": {
+      "type": "object",
+      "required": ["id", "dimensions", "walls", "objects"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "dimensions": { "$ref": "#/$defs/dimensions" },
+        "walls": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/wall" }
+        },
+        "objects": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/object" }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

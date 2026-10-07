@@ -1,0 +1,16 @@
+node_modules
+.pnpm-store
+pnpm-lock.yaml
+.dist
+coverage
+.vite
+.DS_Store
+.venv
+__pycache__
+.pytest_cache
+.commandcode/*
+
+*.pyc
+*.egg-info
+dist
+TODO1.md

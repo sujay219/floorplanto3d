@@ -39,6 +39,7 @@ export class BabylonRenderer implements SceneRenderer {
   private cornerLookActive = false;
   private cornerLastPointerX = 0;
   private cornerLastPointerY = 0;
+  private hiddenCornerMarkerId: string | null = null;
   private currentRoomCenter: BABYLON.Vector3 | null = null;
   private cameraInitialized = false;
   private zoomChangeListeners = new Set<(radius: number) => void>();
@@ -125,13 +126,19 @@ export class BabylonRenderer implements SceneRenderer {
     this.applyEagleView(new BABYLON.Vector3(center.x, center.y, 0));
   }
 
-  focusCornerCamera(corner: { x: number; y: number }): void {
+  focusCornerCamera(corner: { id: string; x: number; y: number }): void {
     const freeCamera = this.freeCamera;
     const center = this.currentRoomCenter;
 
     if (!freeCamera || !center) {
       return;
     }
+
+    if (this.hiddenCornerMarkerId) {
+      this.setCornerMarkerHidden(this.hiddenCornerMarkerId, false);
+    }
+    this.hiddenCornerMarkerId = corner.id;
+    this.setCornerMarkerHidden(corner.id, true);
 
     const eyeHeight = this.roomHeight * CORNER_CAMERA_HEIGHT_FACTOR;
     freeCamera.position.copyFrom(new BABYLON.Vector3(corner.x, corner.y, eyeHeight));
@@ -146,6 +153,20 @@ export class BabylonRenderer implements SceneRenderer {
 
     this.setActiveCamera('free');
     this.setActiveCameraMode('corner');
+  }
+
+  private setCornerMarkerHidden(markerId: string, hidden: boolean): void {
+    const sceneInstance = this.scene;
+    if (!sceneInstance) {
+      return;
+    }
+
+    for (const name of [`cameraMarker_${markerId}`, `cameraLens_${markerId}`]) {
+      const mesh = sceneInstance.getMeshByName(name);
+      if (mesh) {
+        mesh.isVisible = !hidden;
+      }
+    }
   }
 
   private applyCornerLook(): void {
@@ -200,6 +221,11 @@ export class BabylonRenderer implements SceneRenderer {
   private applyEagleView(target: BABYLON.Vector3): void {
     if (!this.camera) {
       return;
+    }
+
+    if (this.hiddenCornerMarkerId) {
+      this.setCornerMarkerHidden(this.hiddenCornerMarkerId, false);
+      this.hiddenCornerMarkerId = null;
     }
 
     this.camera.setTarget(target);
@@ -891,6 +917,11 @@ export class BabylonRenderer implements SceneRenderer {
           this.focusCornerCamera(corner);
         }),
       );
+
+      if (this.hiddenCornerMarkerId === corner.id) {
+        body.isVisible = false;
+        lens.isVisible = false;
+      }
     });
   }
 

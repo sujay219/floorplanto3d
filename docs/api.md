@@ -199,6 +199,147 @@ without re-deriving the position.
 **`diagnostics.warnings`** is non-fatal. It records absent scale, blank input,
 and unrecoverable rooms. An empty `warnings` array means a clean run.
 
+### `POST /parse2d`
+
+`multipart/form-data` with a required `image` file. Same accepted content types
+and 50 MB cap as `/process-floorplan`, but no scale parameters: coordinates are
+always returned in image pixels.
+
+Returns only the detected dark lines (the wall centrelines) and the image
+canvas, for consumers that just want to draw the plan in 2D.
+
+```bash
+curl -F "image=@plan.png" http://localhost:8000/parse2d
+```
+
+```json
+{
+  "version": "1.0",
+  "units": "px",
+  "image": { "width": 600, "height": 400 },
+  "walls": [
+    {
+      "id": "wall_001",
+      "centerline": { "start": {"x": 49, "y": 51}, "end": {"x": 49, "y": 351} },
+      "length": 300.0,
+      "angle_deg": 90.0,
+      "orientation": "vertical",
+      "thickness": 8.0
+    }
+  ],
+  "diagnostics": {
+    "wall_count": 5,
+    "room_count": 2,
+    "door_count": 1,
+    "window_count": 0,
+    "opening_count": 1,
+    "warnings": ["no scale supplied; coordinates are reported in image pixels"],
+    "processing_ms": 21.4
+  }
+}
+```
+
+`walls` is the list of detected darker lines, each a wall centreline in image
+pixels with the same per-wall fields documented above. `image` gives the pixel
+canvas so a renderer can scale the lines to fit. Errors are identical to
+`/process-floorplan`.
+
+### `POST /detect2d`
+
+`multipart/form-data` with a required `image` file. Same accepted content types
+and 50 MB cap as `/process-floorplan`, no scale parameters.
+
+Runs **Phase 1 (image normalization)** only: the original image is loaded
+unmodified, its dimensions, image mode and format are recorded, the
+background, contrast, noise and ink stroke width are inspected, and a
+normalized working image is produced. Nothing is cropped (furniture, text and
+annotations stay), the aspect ratio is preserved, and no denoising or
+thresholding is applied. Wall, room and opening detection are later phases and
+are not performed here.
+
+```bash
+curl -F "image=@plan.png" http://localhost:8000/detect2d
+```
+
+```json
+{
+  "phase": { "number": 1, "name": "normalization" },
+  "report": {
+    "original": {
+      "width": 1356,
+      "height": 1708,
+      "mode": "RGB",
+      "format": "PNG",
+      "aspect_ratio": 0.793911
+    },
+    "normalized": {
+      "width": 1356,
+      "height": 1708,
+      "mode": "L",
+      "aspect_ratio": 0.793911,
+      "resized": false,
+      "scale": 1.0
+    },
+    "inspection": {
+      "background": {
+        "level": 245.0,
+        "polarity": "light",
+        "gradient_std": 6.31,
+        "gradient_range": 44.8
+      },
+      "contrast": {
+        "min": 0,
+        "max": 255,
+        "low": 24.0,
+        "median": 231.0,
+        "high": 252.0,
+        "dynamic_range": 228.0,
+        "rms_contrast": 0.3172
+      },
+      "noise": {
+        "sigma": 2.94,
+        "sigma_normalized": 3.5,
+        "method": "robust MAD of median-filter residual (noise + fine texture)"
+      },
+      "wall_thickness": {
+        "p25_px": 2.0,
+        "median_px": 4.0,
+        "p75_px": 9.0,
+        "p90_px": 15.0,
+        "sample_count": 4821,
+        "method": "dark-run length statistics at gray <= 128 (inspection estimate only; no wall detection)"
+      }
+    },
+    "parameters": {
+      "color_mode": "L",
+      "resize_max_side_px": 4000,
+      "resize_scale": 1.0,
+      "background_sigma_px": 67.8,
+      "background_target_level": 255.0,
+      "background_divisor_floor": 128.0,
+      "contrast_low_percentile": 1.0,
+      "contrast_high_percentile": 99.0,
+      "denoise": "none",
+      "crop": "none"
+    }
+  },
+  "images": {
+    "original": { "filename": "original.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "normalized": { "filename": "normalized.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "comparison": { "filename": "comparison.png", "media_type": "image/png", "data": "data:image/png;base64,..." }
+  }
+}
+```
+
+`report` is the Phase 1 JSON report (also saved as `report.json` when
+artifacts are written): image dimensions and the preprocessing parameters,
+plus the inspection measurements. `images` carries the three generated
+artifacts — `original.png` (unmodified), `normalized.png` (flat-fielded and
+contrast-stretched grayscale) and `comparison.png` (the two side by side) —
+as PNG data URIs. `inspection.wall_thickness` is a stroke-width estimate for
+inspection only; no wall detection has run. Errors are identical to
+`/process-floorplan`.
+
 ### Errors
 
 Every failure returns a structured body and never a stack trace.

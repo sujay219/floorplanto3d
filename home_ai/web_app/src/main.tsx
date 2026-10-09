@@ -4,6 +4,7 @@ import { BabylonRenderer } from '@home-ai/renderer';
 import type { Scene } from '@home-ai/scene-schema';
 import { developmentScene } from './mock-scene';
 import { processFloorPlanImage } from './floorplan';
+import { Detect2DPage } from './Detect2DPage';
 import './styles.css';
 
 type Status = 'idle' | 'processing' | 'ready' | 'error';
@@ -212,6 +213,9 @@ const App = () => {
           >
             Reset camera
           </button>
+          <a className="btn" href="/detect2d">
+            2D Detect
+          </a>
           <div className={`status status-${status}`} role="status" aria-live="polite">
             <span className="status-dot" aria-hidden="true" />
             {status === 'processing' ? 'Processing floor plan…' : null}
@@ -267,8 +271,11 @@ const App = () => {
   );
 };
 
+const path = window.location.pathname.replace(/\/+$/, '') || '/';
+const Page = path === '/detect2d' ? Detect2DPage : App;
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <Page />
   </React.StrictMode>,
 );

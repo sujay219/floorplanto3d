@@ -7,14 +7,24 @@ document so a consumer never has to guess.
 
 from __future__ import annotations
 
+import base64
 import json
 from pathlib import Path
 from typing import Any
+
+from PIL import Image
 
 from floorplanto3d.models.floor_plan import FloorPlan
 from floorplanto3d.models.opening import Door, Window
 from floorplanto3d.models.room import Room
 from floorplanto3d.models.wall import Wall
+from floorplanto3d.processing.normalize import (
+    COMPARISON_FILENAME,
+    NORMALIZED_FILENAME,
+    ORIGINAL_FILENAME,
+    NormalizationResult,
+    png_bytes,
+)
 
 JsonDict = dict[str, Any]
 
@@ -94,6 +104,55 @@ def floor_plan_to_dict(floor_plan: FloorPlan) -> JsonDict:
         "doors": [opening_to_dict(door) for door in floor_plan.doors],
         "windows": [opening_to_dict(window) for window in floor_plan.windows],
         "diagnostics": floor_plan.diagnostics.model_dump(),
+    }
+
+
+def parse2d_to_dict(floor_plan: FloorPlan) -> JsonDict:
+    """Serialize only the detected dark lines (walls) for the 2D parser.
+
+    A focused subset of :func:`floor_plan_to_dict` used by the ``/parse2d``
+    endpoint: it carries the darker ink lines (the wall centrelines) and the
+    image canvas, leaving out rooms, openings and scale so a 2D consumer can
+    draw the detected lines directly in image-pixel space.
+    """
+    return {
+        "version": floor_plan.version,
+        "units": floor_plan.units.value,
+        "image": {
+            "width": floor_plan.image.width,
+            "height": floor_plan.image.height,
+        },
+        "walls": [wall_to_dict(wall) for wall in floor_plan.walls],
+        "diagnostics": floor_plan.diagnostics.model_dump(),
+    }
+
+
+def detect2d_to_dict(result: NormalizationResult) -> JsonDict:
+    """Serialize the Phase 1 (normalization) result for ``/detect2d``.
+
+    Carries the normalization report (dimensions, inspection and
+    preprocessing parameters) together with the three generated artifacts
+    (``original.png``, ``normalized.png``, ``comparison.png``) as PNG data
+    URIs. No thresholding, wall or room detection output exists at this
+    phase.
+    """
+    return {
+        "phase": {"number": 1, "name": "normalization"},
+        "report": result.report,
+        "images": {
+            "original": _image_payload(result.original, ORIGINAL_FILENAME),
+            "normalized": _image_payload(result.normalized, NORMALIZED_FILENAME),
+            "comparison": _image_payload(result.comparison, COMPARISON_FILENAME),
+        },
+    }
+
+
+def _image_payload(image: Image.Image, filename: str) -> JsonDict:
+    data = base64.b64encode(png_bytes(image)).decode("ascii")
+    return {
+        "filename": filename,
+        "media_type": "image/png",
+        "data": f"data:image/png;base64,{data}",
     }
 
 
@@ -178,6 +237,7 @@ __all__ = [
     "floor_plan_to_dict",
     "from_file",
     "from_json",
+    "parse2d_to_dict",
     "to_file",
     "to_json",
     "wall_to_dict",

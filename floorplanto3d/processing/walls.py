@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 import math
 from dataclasses import dataclass
+from enum import StrEnum
 
 import cv2
 import numpy as np
@@ -26,6 +27,14 @@ from floorplanto3d.models.geometry import Point2D, classify_orientation
 from floorplanto3d.models.wall import Wall
 
 logger = logging.getLogger(__name__)
+
+
+class CandidateDecision(StrEnum):
+    """Internal wall-candidate decision used for diagnostics."""
+
+    ACCEPTED_WALL = "accepted_wall"
+    POSSIBLE_WALL = "possible_wall"
+    REJECTED_NON_WALL = "rejected_non_wall"
 
 
 @dataclass
@@ -64,6 +73,31 @@ class StrokeCandidate:
         return (round(angle / 5.0), self.orientation == "vertical")
 
 
+@dataclass
+class CandidateDiagnostic:
+    """Lightweight explanation of a candidate decision."""
+
+    decision: CandidateDecision
+    reason: str
+    length: float
+    thickness: float | None = None
+    continuity: float = 0.0
+    parallel_edge_score: float = 0.0
+    connectivity: float = 0.0
+    start: Point2D | None = None
+    end: Point2D | None = None
+
+
+@dataclass
+class WallExtractionResult:
+    """Walls plus the candidate-level diagnostics behind them."""
+
+    walls: list[Wall]
+    diagnostics: list[CandidateDiagnostic]
+    raw_count: int
+    normalized_count: int
+
+
 def _estimate_stroke_width(binary: np.ndarray) -> float:
     """Robustly estimate stroke width via the distance transform.
 
@@ -79,6 +113,39 @@ def _estimate_stroke_width(binary: np.ndarray) -> float:
     return max(1.0, float(np.percentile(samples, 75)) * 2.0)
 
 
+def _unit_vectors(angle_deg: float) -> tuple[tuple[float, float], tuple[float, float]]:
+    """Return direction and left-normal unit vectors for an angle."""
+    radians = math.radians(angle_deg)
+    ux, uy = math.cos(radians), math.sin(radians)
+    return (ux, uy), (-uy, ux)
+
+
+def _project(point: Point2D, vector: tuple[float, float]) -> float:
+    return point.x * vector[0] + point.y * vector[1]
+
+
+def _axis_interval(segment: StrokeCandidate) -> tuple[float, float]:
+    unit, _ = _unit_vectors(segment.angle_deg)
+    a = _project(segment.start, unit)
+    b = _project(segment.end, unit)
+    return (min(a, b), max(a, b))
+
+
+def _normal_offset(segment: StrokeCandidate, angle_deg: float | None = None) -> float:
+    _, normal = _unit_vectors(segment.angle_deg if angle_deg is None else angle_deg)
+    return (_project(segment.start, normal) + _project(segment.end, normal)) / 2.0
+
+
+def _point_from_axis(
+    along: float, normal_offset: float, angle_deg: float
+) -> Point2D:
+    unit, normal = _unit_vectors(angle_deg)
+    return Point2D(
+        x=unit[0] * along + normal[0] * normal_offset,
+        y=unit[1] * along + normal[1] * normal_offset,
+    )
+
+
 def _collinear_merge(
     candidates: list[StrokeCandidate], tolerance: float, gap_tolerance: float
 ) -> list[StrokeCandidate]:
@@ -90,7 +157,7 @@ def _collinear_merge(
     merged: list[StrokeCandidate] = []
 
     for group in groups.values():
-        remaining = list(group)
+        remaining = sorted(group, key=lambda segment: (_normal_offset(segment), *_axis_interval(segment)))
         while remaining:
             seed = remaining.pop(0)
             cluster = [seed]
@@ -99,7 +166,7 @@ def _collinear_merge(
                 changed = False
                 for other in list(remaining):
                     for member in cluster:
-                        if _on_same_line(member, other, tolerance):
+                        if _mergeable_collinear(member, other, tolerance, gap_tolerance):
                             cluster.append(other)
                             remaining.remove(other)
                             changed = True
@@ -110,6 +177,19 @@ def _collinear_merge(
             merged.append(_collapse_cluster(cluster, gap_tolerance))
 
     return merged
+
+
+def _mergeable_collinear(
+    a: StrokeCandidate, b: StrokeCandidate, tolerance: float, gap_tolerance: float
+) -> bool:
+    """Whether two segments are close enough on the same run to merge."""
+    if not _on_same_line(a, b, tolerance):
+        return False
+
+    a0, a1 = _axis_interval(a)
+    b0, b1 = _axis_interval(b)
+    gap = max(a0, b0) - min(a1, b1)
+    return gap <= gap_tolerance
 
 
 def _on_same_line(a: StrokeCandidate, b: StrokeCandidate, tolerance: float) -> bool:
@@ -149,6 +229,7 @@ def _collapse_cluster(
         end=end,
         stroke_id=cluster[0].stroke_id,
         confidence=min(member.confidence for member in cluster),
+        half_width=float(np.median([member.half_width for member in cluster])),
     )
 
 
@@ -181,12 +262,9 @@ def _shared_length(a: StrokeCandidate, b: StrokeCandidate) -> float:
     if not _on_same_line(a, b, 1.0):
         return 0.0
 
-    lo = max(min(a.start.x, a.end.x), min(b.start.x, b.end.x))
-    hi = min(max(a.start.x, a.end.x), max(b.start.x, b.end.x))
-    overlap_x = max(0.0, hi - lo)
-    if overlap_x <= 0:
-        return 0.0
-    return overlap_x / max(abs(math.cos(math.radians(a.angle_deg))), 1e-6)
+    a0, a1 = _axis_interval(a)
+    b0, b1 = _axis_interval(b)
+    return max(0.0, min(a1, b1) - max(a0, b0))
 
 
 def measure_thickness(
@@ -427,6 +505,390 @@ def _snap_to_axis(segment: StrokeCandidate, tolerance: float = 8.0) -> StrokeCan
     )
 
 
+def _angle_difference(a: float, b: float) -> float:
+    diff = abs(a - b)
+    return min(diff, 180.0 - diff)
+
+
+def _overlap_ratio(a: StrokeCandidate, b: StrokeCandidate) -> float:
+    a0, a1 = _axis_interval(a)
+    b0, b1 = _axis_interval(b)
+    overlap = max(0.0, min(a1, b1) - max(a0, b0))
+    shorter = max(1e-6, min(a1 - a0, b1 - b0))
+    return overlap / shorter
+
+
+def _continuity_score(
+    binary: np.ndarray, segment: StrokeCandidate, band: int = 1
+) -> float:
+    """Fraction of samples along a segment that still touch foreground ink."""
+    length = segment.length
+    if length < 1e-6:
+        return 0.0
+
+    height, width = binary.shape[:2]
+    ux = (segment.end.x - segment.start.x) / length
+    uy = (segment.end.y - segment.start.y) / length
+    nx, ny = -uy, ux
+    samples = max(12, min(int(length / 3), 160))
+    hits = 0
+
+    for index in range(samples):
+        t = index / max(samples - 1, 1)
+        x = segment.start.x + ux * length * t
+        y = segment.start.y + uy * length * t
+        found = False
+        for offset in range(-band, band + 1):
+            qx = int(round(x + nx * offset))
+            qy = int(round(y + ny * offset))
+            if 0 <= qx < width and 0 <= qy < height and binary[qy, qx] != 0:
+                found = True
+                break
+        if found:
+            hits += 1
+
+    return hits / samples
+
+
+def _band_fill_fraction(
+    binary: np.ndarray,
+    segment_a: StrokeCandidate,
+    segment_b: StrokeCandidate,
+    *,
+    along_start: float | None = None,
+    along_end: float | None = None,
+) -> float:
+    """Ink fill fraction in the strip between two parallel candidates."""
+    angle = segment_a.angle_deg
+    unit, _ = _unit_vectors(angle)
+    n0 = _normal_offset(segment_a, angle)
+    n1 = _normal_offset(segment_b, angle)
+    if n1 < n0:
+        n0, n1 = n1, n0
+
+    a0, a1 = _axis_interval(segment_a)
+    b0, b1 = _axis_interval(segment_b)
+    start = max(a0, b0) if along_start is None else along_start
+    end = min(a1, b1) if along_end is None else along_end
+    if end <= start or n1 <= n0:
+        return 0.0
+
+    height, width = binary.shape[:2]
+    along_samples = max(12, min(int(end - start), 120))
+    across_samples = max(3, min(int(round(n1 - n0)) + 1, 40))
+    ink = 0
+    total = 0
+
+    for i in range(along_samples):
+        along = start + (end - start) * (i + 0.5) / along_samples
+        for j in range(across_samples):
+            normal = n0 + (n1 - n0) * (j + 0.5) / across_samples
+            point = _point_from_axis(along, normal, angle)
+            qx, qy = int(round(point.x)), int(round(point.y))
+            if 0 <= qx < width and 0 <= qy < height:
+                total += 1
+                if binary[qy, qx] != 0:
+                    ink += 1
+
+    return ink / total if total else 0.0
+
+
+def _component_fill_ratio(
+    labels: np.ndarray, stats: np.ndarray, segment: StrokeCandidate
+) -> float:
+    """Fill ratio of the connected component most sampled by a segment."""
+    length = segment.length
+    if length < 1e-6:
+        return 0.0
+
+    height, width = labels.shape[:2]
+    ux = (segment.end.x - segment.start.x) / length
+    uy = (segment.end.y - segment.start.y) / length
+    samples = max(8, min(int(length / 4), 80))
+    counts: dict[int, int] = {}
+    for index in range(samples):
+        t = index / max(samples - 1, 1)
+        qx = int(round(segment.start.x + ux * length * t))
+        qy = int(round(segment.start.y + uy * length * t))
+        if not (0 <= qx < width and 0 <= qy < height):
+            continue
+        label = int(labels[qy, qx])
+        if label:
+            counts[label] = counts.get(label, 0) + 1
+
+    if not counts:
+        return 0.0
+
+    label = max(counts, key=counts.get)
+    x, y, w, h, area = stats[label]
+    box_area = max(1, int(w) * int(h))
+    return float(area) / box_area
+
+
+def _resolve_parallel_edges(
+    binary: np.ndarray,
+    segments: list[StrokeCandidate],
+    *,
+    min_overlap_ratio: float = 0.65,
+    min_band_fill: float = 0.55,
+) -> tuple[list[StrokeCandidate], list[StrokeCandidate], list[CandidateDiagnostic]]:
+    """Collapse opposite faces of filled thick strokes into centrelines."""
+    if not segments:
+        return [], [], []
+
+    stroke_width = _estimate_stroke_width(binary)
+    min_separation = max(3.0, stroke_width * 0.35)
+    max_separation = max(8.0, min(60.0, stroke_width * 4.0 + 8.0))
+    used = [False] * len(segments)
+    reconstructed: list[StrokeCandidate] = []
+    diagnostics: list[CandidateDiagnostic] = []
+
+    ordered = sorted(range(len(segments)), key=lambda i: segments[i].length, reverse=True)
+    for i in ordered:
+        if used[i]:
+            continue
+        segment = segments[i]
+        best: tuple[float, int, float, float] | None = None
+
+        for j in ordered:
+            if i == j or used[j]:
+                continue
+            other = segments[j]
+            if _angle_difference(segment.angle_deg, other.angle_deg) > 5.0:
+                continue
+            separation = abs(_normal_offset(segment) - _normal_offset(other, segment.angle_deg))
+            if separation < min_separation or separation > max_separation:
+                continue
+            overlap = _overlap_ratio(segment, other)
+            if overlap < min_overlap_ratio:
+                continue
+            fill = _band_fill_fraction(binary, segment, other)
+            close_hollow_stroke = (
+                separation <= max(16.0, stroke_width * 4.0)
+                and overlap >= 0.85
+                and fill >= 0.12
+            )
+            if fill < min_band_fill and not close_hollow_stroke:
+                continue
+
+            score = overlap * 0.55 + fill * 0.45
+            if best is None or score > best[0]:
+                best = (score, j, separation, fill)
+
+        if best is None:
+            continue
+
+        _, j, separation, fill = best
+        other = segments[j]
+        used[i] = True
+        used[j] = True
+
+        angle = segment.angle_deg
+        a0, a1 = _axis_interval(segment)
+        b0, b1 = _axis_interval(other)
+        along_start = max(a0, b0)
+        along_end = min(a1, b1)
+        center_offset = (
+            _normal_offset(segment, angle) + _normal_offset(other, angle)
+        ) / 2.0
+        start = _point_from_axis(along_start, center_offset, angle)
+        end = _point_from_axis(along_end, center_offset, angle)
+        if end.x < start.x or (end.x == start.x and end.y < start.y):
+            start, end = end, start
+
+        reconstructed.append(
+            StrokeCandidate(
+                start=start,
+                end=end,
+                stroke_id=segment.stroke_id,
+                confidence=min(1.0, max(0.0, best[0])),
+                half_width=(separation if fill >= min_band_fill else separation + 2.0 * stroke_width)
+                / 2.0,
+            )
+        )
+        diagnostics.append(
+            CandidateDiagnostic(
+                decision=CandidateDecision.ACCEPTED_WALL,
+                reason="parallel filled edge pair",
+                length=start.distance_to(end),
+                thickness=reconstructed[-1].half_width * 2.0,
+                continuity=fill,
+                parallel_edge_score=best[0],
+            )
+        )
+
+    leftovers = [segment for index, segment in enumerate(segments) if not used[index]]
+    return reconstructed, leftovers, diagnostics
+
+
+def _validate_standalone_candidates(
+    binary: np.ndarray,
+    segments: list[StrokeCandidate],
+    *,
+    min_length: float,
+    context_has_walls: bool = False,
+    context_length_ratio: float = 0.30,
+) -> tuple[list[StrokeCandidate], list[CandidateDiagnostic]]:
+    """Keep only standalone runs that look like solid structural strokes."""
+    if not segments:
+        return [], []
+
+    _, labels, stats, _ = cv2.connectedComponentsWithStats(binary, 8)
+    image_diagonal = float(np.hypot(binary.shape[1], binary.shape[0]))
+    min_structural_length = max(min_length, image_diagonal * 0.08)
+    accepted: list[StrokeCandidate] = []
+    diagnostics: list[CandidateDiagnostic] = []
+
+    for segment in segments:
+        thickness = measure_thickness(binary, segment.start, segment.end)
+        band = max(1, int(round((thickness or 2.0) / 2.0)))
+        continuity = _continuity_score(binary, segment, band=min(band, 4))
+        component_fill = _component_fill_ratio(labels, stats, segment)
+
+        solid_component = component_fill >= 0.35
+        structural_context = (
+            context_has_walls and segment.length >= image_diagonal * context_length_ratio
+        )
+
+        if (
+            segment.length >= min_structural_length
+            and thickness is not None
+            and thickness >= 3.5
+            and continuity >= 0.78
+            and (solid_component or structural_context)
+        ):
+            accepted.append(segment)
+            diagnostics.append(
+                CandidateDiagnostic(
+                    decision=CandidateDecision.POSSIBLE_WALL,
+                    reason="solid standalone stroke",
+                    length=segment.length,
+                    thickness=thickness,
+                    continuity=continuity,
+                )
+            )
+            continue
+
+        diagnostics.append(
+            CandidateDiagnostic(
+                decision=CandidateDecision.REJECTED_NON_WALL,
+                reason="isolated thin or outline-like stroke",
+                length=segment.length,
+                thickness=thickness,
+                continuity=continuity,
+            )
+        )
+
+    return accepted, diagnostics
+
+
+def _has_candidate_wall_network(
+    binary: np.ndarray, segments: list[StrokeCandidate], min_length: float
+) -> bool:
+    """Whether raw candidates already form a plausible wall graph."""
+    if len(segments) < 4:
+        return False
+
+    image_diagonal = float(np.hypot(binary.shape[1], binary.shape[0]))
+    structural_min = max(min_length, image_diagonal * 0.12)
+    long_segments = [segment for segment in segments if segment.length >= structural_min]
+    if len(long_segments) < 4:
+        return False
+
+    horizontal = sum(1 for segment in long_segments if segment.orientation == "horizontal")
+    vertical = sum(1 for segment in long_segments if segment.orientation == "vertical")
+    diagonal = len(long_segments) - horizontal - vertical
+    return (horizontal >= 2 and vertical >= 2) or (
+        diagonal >= 1 and horizontal + vertical + diagonal >= 4
+    )
+
+
+def extract_walls_detailed(
+    binary: np.ndarray,
+    *,
+    min_edge_length: float = 30.0,
+    merge_tolerance: float = 4.0,
+    gap_tolerance: float = 10.0,
+    overlap_ratio: float = 0.80,
+) -> WallExtractionResult:
+    """Extract walls together with per-candidate diagnostics.
+
+    Same pipeline as :func:`extract_walls`, but every candidate carries its
+    decision, scores and rejection reason so callers can report why a segment
+    was accepted or dropped.
+
+    Returns:
+        A :class:`WallExtractionResult`.
+    """
+    detected = detect_segments(binary, min_length=min_edge_length)
+    if not detected:
+        return WallExtractionResult(walls=[], diagnostics=[], raw_count=0, normalized_count=0)
+
+    # Merge collinear runs *before* centring. A door or window splits one wall
+    # into several Hough segments that each sit on their own fragment's edge;
+    # centring them individually would leave the wall as a band several pixels
+    # thick and would hide the opening from the gap detector.
+    merged = _collinear_merge(detected, merge_tolerance, gap_tolerance)
+    merged = [_snap_to_axis(segment) for segment in merged]
+
+    paired, leftovers, pair_diagnostics = _resolve_parallel_edges(binary, merged)
+    has_network_context = _has_candidate_wall_network(binary, merged, min_edge_length)
+    context_length_ratio = 0.30 if paired else 0.12
+    standalone, standalone_diagnostics = _validate_standalone_candidates(
+        binary,
+        leftovers,
+        min_length=min_edge_length,
+        context_has_walls=bool(paired) or has_network_context,
+        context_length_ratio=context_length_ratio,
+    )
+
+    candidates = paired + [centre_on_stroke(binary, segment) for segment in standalone]
+
+    deduped = _dedupe_overlapping(candidates, overlap_ratio)
+    image_diagonal = float(np.hypot(binary.shape[1], binary.shape[0]))
+    scale_aware_min_length = max(min_edge_length, image_diagonal * 0.08)
+    deduped = [s for s in deduped if s.length >= scale_aware_min_length]
+
+    # Order deterministically: vertical walls left to right, then horizontal.
+    deduped.sort(
+        key=lambda s: (s.orientation != "vertical", round(s.start.x), round(s.start.y))
+    )
+
+    walls: list[Wall] = []
+    for index, segment in enumerate(deduped):
+        thickness = measure_thickness(binary, segment.start, segment.end)
+        if thickness is None and segment.half_width > 1.0:
+            thickness = round(segment.half_width * 2.0, 2)
+        walls.append(
+            Wall(
+                id=f"wall_{index + 1:03d}",
+                start=segment.start,
+                end=segment.end,
+                thickness=thickness,
+                confidence=segment.confidence,
+            )
+        )
+
+    logger.info(
+        "Extracted %d walls (median thickness %s, paired %d, standalone %d, rejected %d)",
+        len(walls),
+        _median_thickness(walls),
+        len(pair_diagnostics),
+        len(standalone),
+        sum(
+            1
+            for diagnostic in standalone_diagnostics
+            if diagnostic.decision == CandidateDecision.REJECTED_NON_WALL
+        ),
+    )
+    return WallExtractionResult(
+        walls=walls,
+        diagnostics=pair_diagnostics + standalone_diagnostics,
+        raw_count=len(detected),
+        normalized_count=len(merged),
+    )
+
+
 def extract_walls(
     binary: np.ndarray,
     *,
@@ -447,46 +909,13 @@ def extract_walls(
     Returns:
         A list of :class:`Wall` objects with pixel coordinates.
     """
-    detected = detect_segments(binary, min_length=min_edge_length)
-    if not detected:
-        return []
-
-    # Merge collinear runs *before* centring. A door or window splits one wall
-    # into several Hough segments that each sit on their own fragment's edge;
-    # centring them individually would leave the wall as a band several pixels
-    # thick and would hide the opening from the gap detector.
-    merged = _collinear_merge(detected, merge_tolerance, gap_tolerance)
-    merged = [_snap_to_axis(segment) for segment in merged]
-
-    candidates = [centre_on_stroke(binary, segment) for segment in merged]
-
-    deduped = _dedupe_overlapping(candidates, overlap_ratio)
-    deduped = [s for s in deduped if s.length >= min_edge_length]
-
-    # Order deterministically: vertical walls left to right, then horizontal.
-    deduped.sort(
-        key=lambda s: (s.orientation != "vertical", round(s.start.x), round(s.start.y))
-    )
-
-    walls: list[Wall] = []
-    for index, segment in enumerate(deduped):
-        thickness = measure_thickness(binary, segment.start, segment.end)
-        walls.append(
-            Wall(
-                id=f"wall_{index + 1:03d}",
-                start=segment.start,
-                end=segment.end,
-                thickness=thickness,
-                confidence=segment.confidence,
-            )
-        )
-
-    logger.info(
-        "Extracted %d walls (median thickness %s)",
-        len(walls),
-        _median_thickness(walls),
-    )
-    return walls
+    return extract_walls_detailed(
+        binary,
+        min_edge_length=min_edge_length,
+        merge_tolerance=merge_tolerance,
+        gap_tolerance=gap_tolerance,
+        overlap_ratio=overlap_ratio,
+    ).walls
 
 
 def _median_thickness(walls: list[Wall]) -> str:

@@ -46,7 +46,54 @@ def load_image(
         UnsupportedImageFormatError: The format is not in :data:`ALLOWED_FORMATS`.
         ImageTooLargeError: The image exceeds the size limits.
     """
-    logger.debug("Loading image from %s", type(source).__name__)
+    image = open_image(source, max_pixels=max_pixels, max_dimension=max_dimension)
+    width, height = image.size
+    detected_format = (image.format or "").upper() or None
+
+    # Palette images with transparency are common for floor plans; flatten them.
+    if image.mode in ("RGBA", "LA", "P"):
+        background = Image.new("RGB", image.size, (255, 255, 255))
+        rgba = image.convert("RGBA")
+        background.paste(rgba, mask=rgba.split()[-1])
+        image = background
+    elif image.mode != "RGB":
+        image = image.convert("RGB")
+
+    array = np.asarray(image)
+    if array.ndim != 3 or array.shape[2] != 3:
+        raise InvalidImageError(f"Expected an RGB image, got shape {array.shape}")
+
+    logger.info("Loaded image %dx%d (%s)", width, height, detected_format)
+    return array, width, height, detected_format
+
+
+def open_image(
+    source: str | Path | bytes | bytearray | Image.Image,
+    *,
+    max_pixels: int = DEFAULT_MAX_PIXELS,
+    max_dimension: int = DEFAULT_MAX_DIMENSION,
+) -> Image.Image:
+    """Open a source into a PIL image without touching its pixels.
+
+    The returned image keeps the source's original mode (``RGB``, ``L``,
+    ``P``, ...) and container format so callers can record or preserve them
+    before any conversion. The size guards run here so every loading path
+    enforces the same limits.
+
+    Args:
+        source: File path, raw bytes, or a PIL image.
+        max_pixels: Reject images larger than this many pixels.
+        max_dimension: Reject images with a side longer than this.
+
+    Returns:
+        The opened PIL image.
+
+    Raises:
+        InvalidImageError: The bytes could not be decoded as an image.
+        UnsupportedImageFormatError: The format is not in :data:`ALLOWED_FORMATS`.
+        ImageTooLargeError: The image exceeds the size limits.
+    """
+    logger.debug("Opening image from %s", type(source).__name__)
 
     image = _open(source)
     already_decoded = isinstance(source, Image.Image)
@@ -82,21 +129,7 @@ def load_image(
             max_pixels=max_pixels,
         )
 
-    # Palette images with transparency are common for floor plans; flatten them.
-    if image.mode in ("RGBA", "LA", "P"):
-        background = Image.new("RGB", image.size, (255, 255, 255))
-        rgba = image.convert("RGBA")
-        background.paste(rgba, mask=rgba.split()[-1])
-        image = background
-    elif image.mode != "RGB":
-        image = image.convert("RGB")
-
-    array = np.asarray(image)
-    if array.ndim != 3 or array.shape[2] != 3:
-        raise InvalidImageError(f"Expected an RGB image, got shape {array.shape}")
-
-    logger.info("Loaded image %dx%d (%s)", width, height, detected_format)
-    return array, width, height, detected_format
+    return image
 
 
 def _open(source: str | Path | bytes | bytearray | Image.Image) -> Image.Image:

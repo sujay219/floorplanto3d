@@ -28,7 +28,12 @@ from floorplanto3d.errors import (
 from floorplanto3d.logging_config import configure_logging, get_logger
 from floorplanto3d.models.floor_plan import SCHEMA_VERSION, Units
 from floorplanto3d.pipeline.processor import FloorPlanProcessor
-from floorplanto3d.serialization.json import floor_plan_to_dict
+from floorplanto3d.processing.normalize import normalize_image
+from floorplanto3d.serialization.json import (
+    detect2d_to_dict,
+    floor_plan_to_dict,
+    parse2d_to_dict,
+)
 
 logger = get_logger("api")
 configure_logging()
@@ -65,6 +70,46 @@ def get_processor() -> FloorPlanProcessor:
             status_code=503, detail={"code": "not_ready", "message": "Processor not initialised"}
         )
     return state.processor
+
+
+async def _read_upload(request: Request, image: UploadFile) -> tuple[bytes, str]:
+    """Validate an uploaded image and return ``(contents, content_type)``.
+
+    Shared by the processing endpoints so both enforce the same upload
+    contract: content-type allow-list, empty-file and size guards, and a
+    ``request.received`` log record.
+    """
+    if image.filename is None or not image.content_type:
+        raise MissingImageError("No image was supplied")
+
+    content_type = image.content_type.split(";")[0].strip().lower()
+    if content_type not in ALLOWED_CONTENT_TYPES:
+        raise UnsupportedImageFormatError(
+            f"Content type {content_type!r} is not a supported image type",
+            content_type=content_type,
+            supported=sorted(ALLOWED_CONTENT_TYPES),
+        )
+
+    contents = await image.read()
+    logger.info(
+        "request.received",
+        extra={
+            "image_filename": image.filename,
+            "image_content_type": content_type,
+            "image_bytes": len(contents),
+            "client_host": request.client.host if request.client else None,
+        },
+    )
+
+    if len(contents) == 0:
+        raise InvalidImageError("Uploaded file is empty")
+    if len(contents) > MAX_UPLOAD_BYTES:
+        raise ImageTooLargeError(
+            f"Upload exceeds the {MAX_UPLOAD_BYTES} byte limit",
+            bytes=len(contents),
+            limit=MAX_UPLOAD_BYTES,
+        )
+    return contents, content_type
 
 
 def create_app(*, fail_on_empty: bool = False) -> FastAPI:
@@ -174,37 +219,7 @@ def create_app(*, fail_on_empty: bool = False) -> FastAPI:
         Returns the floor plan document described in ``docs/api.md``.
         """
         started = time.perf_counter()
-
-        if image.filename is None or not image.content_type:
-            raise MissingImageError("No image was supplied")
-
-        content_type = image.content_type.split(";")[0].strip().lower()
-        if content_type not in ALLOWED_CONTENT_TYPES:
-            raise UnsupportedImageFormatError(
-                f"Content type {content_type!r} is not a supported image type",
-                content_type=content_type,
-                supported=sorted(ALLOWED_CONTENT_TYPES),
-            )
-
-        contents = await image.read()
-        logger.info(
-            "request.received",
-            extra={
-                "image_filename": image.filename,
-                "image_content_type": content_type,
-                "image_bytes": len(contents),
-                "client_host": request.client.host if request.client else None,
-            },
-        )
-
-        if len(contents) == 0:
-            raise InvalidImageError("Uploaded file is empty")
-        if len(contents) > MAX_UPLOAD_BYTES:
-            raise ImageTooLargeError(
-                f"Upload exceeds the {MAX_UPLOAD_BYTES} byte limit",
-                bytes=len(contents),
-                limit=MAX_UPLOAD_BYTES,
-            )
+        contents, _ = await _read_upload(request, image)
 
         floor_plan = processor.process_bytes(
             contents,
@@ -231,6 +246,67 @@ def create_app(*, fail_on_empty: bool = False) -> FastAPI:
         )
 
         return JSONResponse(content=floor_plan_to_dict(floor_plan))
+
+    @application.post("/parse2d")
+    async def parse2d(
+        request: Request,
+        image: Annotated[UploadFile, File(description="Floor plan image")],
+        processor: Annotated[FloorPlanProcessor, Depends(get_processor)] = None,  # type: ignore[assignment]
+    ) -> JSONResponse:
+        """Parse a floor plan and return the detected dark lines as JSON.
+
+        Returns a focused document with the image canvas and the wall
+        centrelines (the darker ink lines), tailored for 2D rendering. See
+        ``docs/api.md`` for the exact shape.
+        """
+        started = time.perf_counter()
+        contents, _ = await _read_upload(request, image)
+
+        floor_plan = processor.process_bytes(contents)
+
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        logger.info(
+            "request.completed",
+            extra={
+                "duration_ms": round(elapsed_ms, 2),
+                "image_width": floor_plan.image.width,
+                "image_height": floor_plan.image.height,
+                "walls": len(floor_plan.walls),
+                "units": floor_plan.units.value,
+            },
+        )
+
+        return JSONResponse(content=parse2d_to_dict(floor_plan))
+
+    @application.post("/detect2d")
+    async def detect2d(
+        request: Request,
+        image: Annotated[UploadFile, File(description="Floor plan image")],
+    ) -> JSONResponse:
+        """Run Phase 1 (image normalization) on a floor plan.
+
+        Returns the untouched original, the normalized working image, their
+        side-by-side comparison and the normalization report, as described in
+        ``docs/api.md``. No thresholding, wall detection or room detection is
+        performed at this phase.
+        """
+        started = time.perf_counter()
+        contents, _ = await _read_upload(request, image)
+
+        result = normalize_image(contents)
+
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        logger.info(
+            "request.completed",
+            extra={
+                "duration_ms": round(elapsed_ms, 2),
+                "image_width": result.report["original"]["width"],
+                "image_height": result.report["original"]["height"],
+                "phase": "normalization",
+            },
+        )
+
+        return JSONResponse(content=detect2d_to_dict(result))
 
     return application
 

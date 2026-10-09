@@ -11,7 +11,7 @@ import bedModelUrl from '../../../bed.glb';
 
 export const SHOW_AXIS = true;
 
-const CORNER_CAMERA_HEIGHT_FACTOR = 0.55;
+const CORNER_CAMERA_HEIGHT_FACTOR = 1.0;
 const CORNER_CAMERA_INSET = 180;
 const CORNER_LOOK_SENSITIVITY = 0.005;
 const CORNER_PITCH_LIMIT = (Math.PI / 2) * 0.95;

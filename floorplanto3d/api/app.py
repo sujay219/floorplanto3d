@@ -29,10 +29,12 @@ from floorplanto3d.logging_config import configure_logging, get_logger
 from floorplanto3d.models.floor_plan import SCHEMA_VERSION, Units
 from floorplanto3d.pipeline.processor import FloorPlanProcessor
 from floorplanto3d.processing.normalize import normalize_image
+from floorplanto3d.processing.rectangles import detect_rectangles
 from floorplanto3d.serialization.json import (
     detect2d_to_dict,
     floor_plan_to_dict,
     parse2d_to_dict,
+    rectangles_to_dict,
 )
 
 logger = get_logger("api")
@@ -307,6 +309,39 @@ def create_app(*, fail_on_empty: bool = False) -> FastAPI:
         )
 
         return JSONResponse(content=detect2d_to_dict(result))
+
+    @application.post("/detect2d/rectangles")
+    async def detect2d_rectangles(
+        request: Request,
+        image: Annotated[UploadFile, File(description="Floor plan image")],
+    ) -> JSONResponse:
+        """Run Phase 2 (rectangle detection) on a floor plan.
+
+        Normalizes the upload (Phase 1 input stage), detects rectangular
+        candidates on the normalized image and returns them with overlays
+        drawn on the original image, as described in ``docs/api.md``.
+        Candidates are inspection data only: nothing is removed from the
+        image and no semantic labels are assigned.
+        """
+        started = time.perf_counter()
+        contents, _ = await _read_upload(request, image)
+
+        normalization = normalize_image(contents)
+        result = detect_rectangles(normalization.normalized, normalization.original)
+
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        logger.info(
+            "request.completed",
+            extra={
+                "duration_ms": round(elapsed_ms, 2),
+                "image_width": result.report["input"]["original_width"],
+                "image_height": result.report["input"]["original_height"],
+                "phase": "rectangle_detection",
+                "rectangles": result.report["summary"]["total_rectangles"],
+            },
+        )
+
+        return JSONResponse(content=rectangles_to_dict(result))
 
     return application
 

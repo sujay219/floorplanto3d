@@ -1,0 +1,1636 @@
+{
+  "phase": {
+    "number": 2,
+    "name": "rectangle_detection"
+  },
+  "image": {
+    "width": 1356,
+    "height": 1708,
+    "normalized_width": 1356,
+    "normalized_height": 1708,
+    "coordinate_space": "original"
+  },
+  "rectangles": [
+    {
+      "id": "rect_001",
+      "category": "small",
+      "bbox": {
+        "x": 262,
+        "y": 1435,
+        "width": 186,
+        "height": 162
+      },
+      "corners": [
+        {
+          "x": 408.83,
+          "y": 1596.83
+        },
+        {
+          "x": 261.83,
+          "y": 1487.83
+        },
+        {
+          "x": 301.0,
+          "y": 1435.0
+        },
+        {
+          "x": 448.0,
+          "y": 1544.0
+        }
+      ],
+      "width": 183.0,
+      "height": 65.77,
+      "area": 12036.01,
+      "aspect_ratio": 2.7825,
+      "angle_deg": 36.557,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 0.8697
+    },
+    {
+      "id": "rect_002",
+      "category": "small",
+      "bbox": {
+        "x": 1163,
+        "y": 723,
+        "width": 80,
+        "height": 81
+      },
+      "corners": [
+        {
+          "x": 1207.15,
+          "y": 804.44
+        },
+        {
+          "x": 1163.0,
+          "y": 772.0
+        },
+        {
+          "x": 1199.0,
+          "y": 723.0
+        },
+        {
+          "x": 1243.15,
+          "y": 755.44
+        }
+      ],
+      "width": 60.8,
+      "height": 54.78,
+      "area": 3330.99,
+      "aspect_ratio": 1.1099,
+      "angle_deg": -53.696,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_003",
+      "category": "small",
+      "bbox": {
+        "x": 616,
+        "y": 1203,
+        "width": 108,
+        "height": 15
+      },
+      "corners": [
+        {
+          "x": 724.0,
+          "y": 1218.0
+        },
+        {
+          "x": 616.0,
+          "y": 1218.0
+        },
+        {
+          "x": 616.0,
+          "y": 1203.0
+        },
+        {
+          "x": 724.0,
+          "y": 1203.0
+        }
+      ],
+      "width": 108.0,
+      "height": 15.0,
+      "area": 1620.0,
+      "aspect_ratio": 7.2,
+      "angle_deg": 0.0,
+      "axis_aligned": true,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_004",
+      "category": "small",
+      "bbox": {
+        "x": 980,
+        "y": 320,
+        "width": 9,
+        "height": 176
+      },
+      "corners": [
+        {
+          "x": 989.0,
+          "y": 496.0
+        },
+        {
+          "x": 980.0,
+          "y": 496.0
+        },
+        {
+          "x": 980.0,
+          "y": 320.0
+        },
+        {
+          "x": 989.0,
+          "y": 320.0
+        }
+      ],
+      "width": 176.0,
+      "height": 9.0,
+      "area": 1584.0,
+      "aspect_ratio": 19.5556,
+      "angle_deg": 90.0,
+      "axis_aligned": true,
+      "method": "contour_min_area_rect",
+      "quality_score": 0.8362
+    },
+    {
+      "id": "rect_005",
+      "category": "small",
+      "bbox": {
+        "x": 954,
+        "y": 1545,
+        "width": 25,
+        "height": 48
+      },
+      "corners": [
+        {
+          "x": 974.0,
+          "y": 1593.0
+        },
+        {
+          "x": 954.04,
+          "y": 1590.83
+        },
+        {
+          "x": 959.04,
+          "y": 1544.83
+        },
+        {
+          "x": 979.0,
+          "y": 1547.0
+        }
+      ],
+      "width": 46.27,
+      "height": 20.08,
+      "area": 929.0,
+      "aspect_ratio": 2.3046,
+      "angle_deg": -83.797,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_006",
+      "category": "small",
+      "bbox": {
+        "x": 1321,
+        "y": 1572,
+        "width": 33,
+        "height": 21
+      },
+      "corners": [
+        {
+          "x": 1322.0,
+          "y": 1593.0
+        },
+        {
+          "x": 1321.37,
+          "y": 1572.71
+        },
+        {
+          "x": 1353.37,
+          "y": 1571.71
+        },
+        {
+          "x": 1354.0,
+          "y": 1592.0
+        }
+      ],
+      "width": 32.02,
+      "height": 20.3,
+      "area": 650.0,
+      "aspect_ratio": 1.5769,
+      "angle_deg": -1.79,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_007",
+      "category": "small",
+      "bbox": {
+        "x": 1322,
+        "y": 1386,
+        "width": 32,
+        "height": 23
+      },
+      "corners": [
+        {
+          "x": 1323.07,
+          "y": 1409.06
+        },
+        {
+          "x": 1321.7,
+          "y": 1388.55
+        },
+        {
+          "x": 1352.63,
+          "y": 1386.49
+        },
+        {
+          "x": 1354.0,
+          "y": 1407.0
+        }
+      ],
+      "width": 31.0,
+      "height": 20.55,
+      "area": 637.14,
+      "aspect_ratio": 1.5081,
+      "angle_deg": -3.814,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_008",
+      "category": "small",
+      "bbox": {
+        "x": 364,
+        "y": 524,
+        "width": 20,
+        "height": 31
+      },
+      "corners": [
+        {
+          "x": 384.0,
+          "y": 555.0
+        },
+        {
+          "x": 364.0,
+          "y": 555.0
+        },
+        {
+          "x": 364.0,
+          "y": 524.0
+        },
+        {
+          "x": 384.0,
+          "y": 524.0
+        }
+      ],
+      "width": 31.0,
+      "height": 20.0,
+      "area": 620.0,
+      "aspect_ratio": 1.55,
+      "angle_deg": 90.0,
+      "axis_aligned": true,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_009",
+      "category": "small",
+      "bbox": {
+        "x": 1204,
+        "y": 745,
+        "width": 29,
+        "height": 39
+      },
+      "corners": [
+        {
+          "x": 1217.0,
+          "y": 784.0
+        },
+        {
+          "x": 1203.8,
+          "y": 751.6
+        },
+        {
+          "x": 1220.0,
+          "y": 745.0
+        },
+        {
+          "x": 1233.2,
+          "y": 777.4
+        }
+      ],
+      "width": 34.99,
+      "height": 17.49,
+      "area": 612.0,
+      "aspect_ratio": 2.0,
+      "angle_deg": 67.834,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0,
+      "nested_in": "rect_002"
+    },
+    {
+      "id": "rect_010",
+      "category": "small",
+      "bbox": {
+        "x": 1021,
+        "y": 522,
+        "width": 19,
+        "height": 32
+      },
+      "corners": [
+        {
+          "x": 1040.0,
+          "y": 554.0
+        },
+        {
+          "x": 1021.0,
+          "y": 554.0
+        },
+        {
+          "x": 1021.0,
+          "y": 522.0
+        },
+        {
+          "x": 1040.0,
+          "y": 522.0
+        }
+      ],
+      "width": 32.0,
+      "height": 19.0,
+      "area": 608.0,
+      "aspect_ratio": 1.6842,
+      "angle_deg": 90.0,
+      "axis_aligned": true,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_011",
+      "category": "small",
+      "bbox": {
+        "x": 390,
+        "y": 1303,
+        "width": 27,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 409.37,
+          "y": 1337.33
+        },
+        {
+          "x": 390.15,
+          "y": 1332.16
+        },
+        {
+          "x": 398.0,
+          "y": 1303.0
+        },
+        {
+          "x": 417.22,
+          "y": 1308.18
+        }
+      ],
+      "width": 30.19,
+      "height": 19.91,
+      "area": 601.06,
+      "aspect_ratio": 1.5168,
+      "angle_deg": -74.931,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_012",
+      "category": "small",
+      "bbox": {
+        "x": 111,
+        "y": 1554,
+        "width": 34,
+        "height": 19
+      },
+      "corners": [
+        {
+          "x": 144.0,
+          "y": 1573.0
+        },
+        {
+          "x": 111.0,
+          "y": 1572.0
+        },
+        {
+          "x": 111.55,
+          "y": 1553.8
+        },
+        {
+          "x": 144.55,
+          "y": 1554.8
+        }
+      ],
+      "width": 33.02,
+      "height": 18.2,
+      "area": 601.0,
+      "aspect_ratio": 1.8137,
+      "angle_deg": 1.736,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_013",
+      "category": "small",
+      "bbox": {
+        "x": 429,
+        "y": 1105,
+        "width": 22,
+        "height": 32
+      },
+      "corners": [
+        {
+          "x": 448.12,
+          "y": 1137.29
+        },
+        {
+          "x": 428.79,
+          "y": 1135.91
+        },
+        {
+          "x": 431.0,
+          "y": 1105.0
+        },
+        {
+          "x": 450.33,
+          "y": 1106.38
+        }
+      ],
+      "width": 30.99,
+      "height": 19.38,
+      "area": 600.61,
+      "aspect_ratio": 1.5993,
+      "angle_deg": -85.914,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_014",
+      "category": "small",
+      "bbox": {
+        "x": 960,
+        "y": 125,
+        "width": 19,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 961.0,
+          "y": 158.0
+        },
+        {
+          "x": 960.0,
+          "y": 126.0
+        },
+        {
+          "x": 977.89,
+          "y": 125.44
+        },
+        {
+          "x": 978.89,
+          "y": 157.44
+        }
+      ],
+      "width": 32.02,
+      "height": 17.9,
+      "area": 573.0,
+      "aspect_ratio": 1.7888,
+      "angle_deg": 88.21,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_015",
+      "category": "small",
+      "bbox": {
+        "x": 107,
+        "y": 731,
+        "width": 32,
+        "height": 20
+      },
+      "corners": [
+        {
+          "x": 137.93,
+          "y": 751.06
+        },
+        {
+          "x": 107.0,
+          "y": 749.0
+        },
+        {
+          "x": 108.22,
+          "y": 730.75
+        },
+        {
+          "x": 139.15,
+          "y": 732.81
+        }
+      ],
+      "width": 31.0,
+      "height": 18.29,
+      "area": 567.03,
+      "aspect_ratio": 1.6945,
+      "angle_deg": 3.814,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_016",
+      "category": "small",
+      "bbox": {
+        "x": 1057,
+        "y": 125,
+        "width": 31,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 1076.0,
+          "y": 158.0
+        },
+        {
+          "x": 1056.7,
+          "y": 148.86
+        },
+        {
+          "x": 1068.0,
+          "y": 125.0
+        },
+        {
+          "x": 1087.3,
+          "y": 134.14
+        }
+      ],
+      "width": 26.4,
+      "height": 21.36,
+      "area": 563.79,
+      "aspect_ratio": 1.2361,
+      "angle_deg": -64.654,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_017",
+      "category": "small",
+      "bbox": {
+        "x": 313,
+        "y": 524,
+        "width": 18,
+        "height": 31
+      },
+      "corners": [
+        {
+          "x": 331.0,
+          "y": 555.0
+        },
+        {
+          "x": 313.0,
+          "y": 555.0
+        },
+        {
+          "x": 313.0,
+          "y": 524.0
+        },
+        {
+          "x": 331.0,
+          "y": 524.0
+        }
+      ],
+      "width": 31.0,
+      "height": 18.0,
+      "area": 558.0,
+      "aspect_ratio": 1.7222,
+      "angle_deg": 90.0,
+      "axis_aligned": true,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_018",
+      "category": "small",
+      "bbox": {
+        "x": 107,
+        "y": 621,
+        "width": 33,
+        "height": 31
+      },
+      "corners": [
+        {
+          "x": 116.4,
+          "y": 651.8
+        },
+        {
+          "x": 107.0,
+          "y": 633.0
+        },
+        {
+          "x": 130.6,
+          "y": 621.2
+        },
+        {
+          "x": 140.0,
+          "y": 640.0
+        }
+      ],
+      "width": 26.39,
+      "height": 21.02,
+      "area": 554.6,
+      "aspect_ratio": 1.2553,
+      "angle_deg": -26.565,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_019",
+      "category": "small",
+      "bbox": {
+        "x": 1102,
+        "y": 521,
+        "width": 31,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 1121.0,
+          "y": 554.0
+        },
+        {
+          "x": 1102.46,
+          "y": 543.8
+        },
+        {
+          "x": 1115.0,
+          "y": 521.0
+        },
+        {
+          "x": 1133.54,
+          "y": 531.2
+        }
+      ],
+      "width": 26.02,
+      "height": 21.16,
+      "area": 550.68,
+      "aspect_ratio": 1.2298,
+      "angle_deg": -61.189,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_020",
+      "category": "small",
+      "bbox": {
+        "x": 255,
+        "y": 1037,
+        "width": 33,
+        "height": 29
+      },
+      "corners": [
+        {
+          "x": 262.53,
+          "y": 1065.42
+        },
+        {
+          "x": 255.0,
+          "y": 1047.0
+        },
+        {
+          "x": 280.47,
+          "y": 1036.58
+        },
+        {
+          "x": 288.0,
+          "y": 1055.0
+        }
+      ],
+      "width": 27.51,
+      "height": 19.9,
+      "area": 547.51,
+      "aspect_ratio": 1.3827,
+      "angle_deg": -22.249,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_021",
+      "category": "small",
+      "bbox": {
+        "x": 111,
+        "y": 1449,
+        "width": 33,
+        "height": 28
+      },
+      "corners": [
+        {
+          "x": 117.35,
+          "y": 1476.27
+        },
+        {
+          "x": 111.0,
+          "y": 1458.0
+        },
+        {
+          "x": 137.65,
+          "y": 1448.73
+        },
+        {
+          "x": 144.0,
+          "y": 1467.0
+        }
+      ],
+      "width": 28.21,
+      "height": 19.34,
+      "area": 545.66,
+      "aspect_ratio": 1.4586,
+      "angle_deg": -19.179,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_022",
+      "category": "small",
+      "bbox": {
+        "x": 970,
+        "y": 522,
+        "width": 17,
+        "height": 32
+      },
+      "corners": [
+        {
+          "x": 987.0,
+          "y": 554.0
+        },
+        {
+          "x": 970.0,
+          "y": 554.0
+        },
+        {
+          "x": 970.0,
+          "y": 522.0
+        },
+        {
+          "x": 987.0,
+          "y": 522.0
+        }
+      ],
+      "width": 32.0,
+      "height": 17.0,
+      "area": 544.0,
+      "aspect_ratio": 1.8824,
+      "angle_deg": 90.0,
+      "axis_aligned": true,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_023",
+      "category": "small",
+      "bbox": {
+        "x": 1322,
+        "y": 1353,
+        "width": 32,
+        "height": 28
+      },
+      "corners": [
+        {
+          "x": 1328.56,
+          "y": 1380.85
+        },
+        {
+          "x": 1322.0,
+          "y": 1362.0
+        },
+        {
+          "x": 1347.44,
+          "y": 1353.15
+        },
+        {
+          "x": 1354.0,
+          "y": 1372.0
+        }
+      ],
+      "width": 26.94,
+      "height": 19.96,
+      "area": 537.63,
+      "aspect_ratio": 1.3498,
+      "angle_deg": -19.179,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_024",
+      "category": "small",
+      "bbox": {
+        "x": 345,
+        "y": 1303,
+        "width": 19,
+        "height": 32
+      },
+      "corners": [
+        {
+          "x": 362.06,
+          "y": 1335.15
+        },
+        {
+          "x": 344.79,
+          "y": 1333.91
+        },
+        {
+          "x": 347.0,
+          "y": 1303.0
+        },
+        {
+          "x": 364.27,
+          "y": 1304.23
+        }
+      ],
+      "width": 30.99,
+      "height": 17.31,
+      "area": 536.58,
+      "aspect_ratio": 1.7901,
+      "angle_deg": -85.914,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_025",
+      "category": "small",
+      "bbox": {
+        "x": 302,
+        "y": 306,
+        "width": 29,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 320.0,
+          "y": 339.0
+        },
+        {
+          "x": 302.14,
+          "y": 331.34
+        },
+        {
+          "x": 313.0,
+          "y": 306.0
+        },
+        {
+          "x": 330.86,
+          "y": 313.66
+        }
+      ],
+      "width": 27.57,
+      "height": 19.43,
+      "area": 535.86,
+      "aspect_ratio": 1.4189,
+      "angle_deg": -66.801,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_026",
+      "category": "small",
+      "bbox": {
+        "x": 785,
+        "y": 1371,
+        "width": 29,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 801.0,
+          "y": 1405.0
+        },
+        {
+          "x": 784.51,
+          "y": 1397.11
+        },
+        {
+          "x": 797.0,
+          "y": 1371.0
+        },
+        {
+          "x": 813.49,
+          "y": 1378.89
+        }
+      ],
+      "width": 28.95,
+      "height": 18.28,
+      "area": 529.09,
+      "aspect_ratio": 1.5837,
+      "angle_deg": -64.44,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_027",
+      "category": "small",
+      "bbox": {
+        "x": 1074,
+        "y": 521,
+        "width": 29,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 1091.0,
+          "y": 554.0
+        },
+        {
+          "x": 1073.6,
+          "y": 546.09
+        },
+        {
+          "x": 1085.0,
+          "y": 521.0
+        },
+        {
+          "x": 1102.4,
+          "y": 528.91
+        }
+      ],
+      "width": 27.56,
+      "height": 19.12,
+      "area": 526.87,
+      "aspect_ratio": 1.4416,
+      "angle_deg": -65.556,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_028",
+      "category": "small",
+      "bbox": {
+        "x": 448,
+        "y": 1302,
+        "width": 30,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 464.0,
+          "y": 1336.0
+        },
+        {
+          "x": 448.11,
+          "y": 1327.26
+        },
+        {
+          "x": 462.0,
+          "y": 1302.0
+        },
+        {
+          "x": 477.89,
+          "y": 1310.74
+        }
+      ],
+      "width": 28.83,
+      "height": 18.14,
+      "area": 522.86,
+      "aspect_ratio": 1.5894,
+      "angle_deg": -61.189,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_029",
+      "category": "small",
+      "bbox": {
+        "x": 446,
+        "y": 523,
+        "width": 28,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 463.0,
+          "y": 556.0
+        },
+        {
+          "x": 445.73,
+          "y": 549.24
+        },
+        {
+          "x": 456.0,
+          "y": 523.0
+        },
+        {
+          "x": 473.27,
+          "y": 529.76
+        }
+      ],
+      "width": 28.18,
+      "height": 18.54,
+      "area": 522.57,
+      "aspect_ratio": 1.5197,
+      "angle_deg": -68.629,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_030",
+      "category": "small",
+      "bbox": {
+        "x": 707,
+        "y": 353,
+        "width": 27,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 724.0,
+          "y": 386.0
+        },
+        {
+          "x": 707.01,
+          "y": 379.63
+        },
+        {
+          "x": 717.0,
+          "y": 353.0
+        },
+        {
+          "x": 733.99,
+          "y": 359.37
+        }
+      ],
+      "width": 28.44,
+      "height": 18.14,
+      "area": 515.96,
+      "aspect_ratio": 1.5677,
+      "angle_deg": -69.444,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_031",
+      "category": "small",
+      "bbox": {
+        "x": 416,
+        "y": 523,
+        "width": 27,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 433.0,
+          "y": 556.0
+        },
+        {
+          "x": 416.3,
+          "y": 549.17
+        },
+        {
+          "x": 427.0,
+          "y": 523.0
+        },
+        {
+          "x": 443.7,
+          "y": 529.83
+        }
+      ],
+      "width": 28.27,
+      "height": 18.05,
+      "area": 510.24,
+      "aspect_ratio": 1.5664,
+      "angle_deg": -67.751,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_032",
+      "category": "small",
+      "bbox": {
+        "x": 1322,
+        "y": 1477,
+        "width": 32,
+        "height": 26
+      },
+      "corners": [
+        {
+          "x": 1327.58,
+          "y": 1502.45
+        },
+        {
+          "x": 1322.0,
+          "y": 1485.0
+        },
+        {
+          "x": 1348.42,
+          "y": 1476.55
+        },
+        {
+          "x": 1354.0,
+          "y": 1494.0
+        }
+      ],
+      "width": 27.73,
+      "height": 18.32,
+      "area": 508.23,
+      "aspect_ratio": 1.5135,
+      "angle_deg": -17.745,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_033",
+      "category": "small",
+      "bbox": {
+        "x": 479,
+        "y": 1302,
+        "width": 28,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 494.0,
+          "y": 1336.0
+        },
+        {
+          "x": 478.64,
+          "y": 1328.96
+        },
+        {
+          "x": 491.0,
+          "y": 1302.0
+        },
+        {
+          "x": 506.36,
+          "y": 1309.04
+        }
+      ],
+      "width": 29.66,
+      "height": 16.89,
+      "area": 501.03,
+      "aspect_ratio": 1.7556,
+      "angle_deg": -65.376,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_034",
+      "category": "small",
+      "bbox": {
+        "x": 155,
+        "y": 1521,
+        "width": 35,
+        "height": 22
+      },
+      "corners": [
+        {
+          "x": 158.76,
+          "y": 1543.43
+        },
+        {
+          "x": 155.0,
+          "y": 1530.0
+        },
+        {
+          "x": 185.75,
+          "y": 1521.39
+        },
+        {
+          "x": 189.51,
+          "y": 1534.82
+        }
+      ],
+      "width": 31.93,
+      "height": 13.94,
+      "area": 445.25,
+      "aspect_ratio": 2.2901,
+      "angle_deg": -15.642,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_035",
+      "category": "small",
+      "bbox": {
+        "x": 1127,
+        "y": 1576,
+        "width": 20,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 1141.0,
+          "y": 1609.0
+        },
+        {
+          "x": 1127.26,
+          "y": 1606.01
+        },
+        {
+          "x": 1133.84,
+          "y": 1575.75
+        },
+        {
+          "x": 1147.58,
+          "y": 1578.73
+        }
+      ],
+      "width": 30.97,
+      "height": 14.06,
+      "area": 435.56,
+      "aspect_ratio": 2.2024,
+      "angle_deg": -77.735,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_036",
+      "category": "small",
+      "bbox": {
+        "x": 1099,
+        "y": 170,
+        "width": 22,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 1112.0,
+          "y": 204.0
+        },
+        {
+          "x": 1099.19,
+          "y": 200.34
+        },
+        {
+          "x": 1107.94,
+          "y": 169.7
+        },
+        {
+          "x": 1120.75,
+          "y": 173.36
+        }
+      ],
+      "width": 31.87,
+      "height": 13.32,
+      "area": 424.6,
+      "aspect_ratio": 2.3918,
+      "angle_deg": -74.055,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_037",
+      "category": "small",
+      "bbox": {
+        "x": 1091,
+        "y": 1411,
+        "width": 21,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 1104.49,
+          "y": 1444.13
+        },
+        {
+          "x": 1091.26,
+          "y": 1440.68
+        },
+        {
+          "x": 1099.0,
+          "y": 1411.0
+        },
+        {
+          "x": 1112.23,
+          "y": 1414.45
+        }
+      ],
+      "width": 30.67,
+      "height": 13.67,
+      "area": 419.33,
+      "aspect_ratio": 2.2431,
+      "angle_deg": -75.379,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_038",
+      "category": "small",
+      "bbox": {
+        "x": 1039,
+        "y": 1576,
+        "width": 21,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 1052.0,
+          "y": 1609.0
+        },
+        {
+          "x": 1038.77,
+          "y": 1605.55
+        },
+        {
+          "x": 1046.51,
+          "y": 1575.87
+        },
+        {
+          "x": 1059.74,
+          "y": 1579.32
+        }
+      ],
+      "width": 30.67,
+      "height": 13.67,
+      "area": 419.33,
+      "aspect_ratio": 2.2431,
+      "angle_deg": -75.379,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_039",
+      "category": "small",
+      "bbox": {
+        "x": 1009,
+        "y": 170,
+        "width": 21,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 1018.0,
+          "y": 204.0
+        },
+        {
+          "x": 1009.25,
+          "y": 173.36
+        },
+        {
+          "x": 1021.79,
+          "y": 169.77
+        },
+        {
+          "x": 1030.55,
+          "y": 200.42
+        }
+      ],
+      "width": 31.87,
+      "height": 13.05,
+      "area": 415.85,
+      "aspect_ratio": 2.4421,
+      "angle_deg": 74.055,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_040",
+      "category": "small",
+      "bbox": {
+        "x": 968,
+        "y": 907,
+        "width": 22,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 977.0,
+          "y": 941.0
+        },
+        {
+          "x": 967.7,
+          "y": 910.78
+        },
+        {
+          "x": 980.0,
+          "y": 907.0
+        },
+        {
+          "x": 989.3,
+          "y": 937.22
+        }
+      ],
+      "width": 31.61,
+      "height": 12.87,
+      "area": 406.75,
+      "aspect_ratio": 2.4571,
+      "angle_deg": 72.897,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_041",
+      "category": "small",
+      "bbox": {
+        "x": 467,
+        "y": 567,
+        "width": 18,
+        "height": 33
+      },
+      "corners": [
+        {
+          "x": 480.0,
+          "y": 600.0
+        },
+        {
+          "x": 467.4,
+          "y": 597.67
+        },
+        {
+          "x": 473.14,
+          "y": 566.66
+        },
+        {
+          "x": 485.74,
+          "y": 568.99
+        }
+      ],
+      "width": 31.54,
+      "height": 12.82,
+      "area": 404.29,
+      "aspect_ratio": 2.4602,
+      "angle_deg": -79.508,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_042",
+      "category": "small",
+      "bbox": {
+        "x": 151,
+        "y": 700,
+        "width": 33,
+        "height": 18
+      },
+      "corners": [
+        {
+          "x": 153.42,
+          "y": 718.12
+        },
+        {
+          "x": 151.0,
+          "y": 706.0
+        },
+        {
+          "x": 181.58,
+          "y": 699.88
+        },
+        {
+          "x": 184.0,
+          "y": 712.0
+        }
+      ],
+      "width": 31.18,
+      "height": 12.36,
+      "area": 385.27,
+      "aspect_ratio": 2.5238,
+      "angle_deg": -11.31,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_043",
+      "category": "small",
+      "bbox": {
+        "x": 300,
+        "y": 994,
+        "width": 34,
+        "height": 18
+      },
+      "corners": [
+        {
+          "x": 302.45,
+          "y": 1012.01
+        },
+        {
+          "x": 299.91,
+          "y": 1000.58
+        },
+        {
+          "x": 331.46,
+          "y": 993.56
+        },
+        {
+          "x": 334.0,
+          "y": 1005.0
+        }
+      ],
+      "width": 32.32,
+      "height": 11.71,
+      "area": 378.64,
+      "aspect_ratio": 2.7593,
+      "angle_deg": -12.529,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_044",
+      "category": "small",
+      "bbox": {
+        "x": 300,
+        "y": 1081,
+        "width": 34,
+        "height": 19
+      },
+      "corners": [
+        {
+          "x": 302.71,
+          "y": 1100.27
+        },
+        {
+          "x": 300.0,
+          "y": 1089.0
+        },
+        {
+          "x": 331.47,
+          "y": 1081.45
+        },
+        {
+          "x": 334.17,
+          "y": 1092.72
+        }
+      ],
+      "width": 32.36,
+      "height": 11.59,
+      "area": 375.09,
+      "aspect_ratio": 2.792,
+      "angle_deg": -13.496,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    },
+    {
+      "id": "rect_045",
+      "category": "small",
+      "bbox": {
+        "x": 535,
+        "y": 1148,
+        "width": 19,
+        "height": 34
+      },
+      "corners": [
+        {
+          "x": 546.0,
+          "y": 1182.0
+        },
+        {
+          "x": 535.35,
+          "y": 1179.13
+        },
+        {
+          "x": 543.75,
+          "y": 1147.93
+        },
+        {
+          "x": 554.4,
+          "y": 1150.8
+        }
+      ],
+      "width": 32.31,
+      "height": 11.03,
+      "area": 356.4,
+      "aspect_ratio": 2.9293,
+      "angle_deg": -74.931,
+      "axis_aligned": false,
+      "method": "contour_polygon",
+      "quality_score": 1.0
+    }
+  ]
+}

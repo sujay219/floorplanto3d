@@ -25,6 +25,13 @@ from floorplanto3d.processing.normalize import (
     NormalizationResult,
     png_bytes,
 )
+from floorplanto3d.processing.rectangles import (
+    LARGE_RECTANGLES_FILENAME,
+    MEDIUM_RECTANGLES_FILENAME,
+    RECTANGLES_OVERLAY_FILENAME,
+    SMALL_RECTANGLES_FILENAME,
+    RectangleDetectionResult,
+)
 
 JsonDict = dict[str, Any]
 
@@ -147,6 +154,28 @@ def detect2d_to_dict(result: NormalizationResult) -> JsonDict:
     }
 
 
+def rectangles_to_dict(result: RectangleDetectionResult) -> JsonDict:
+    """Serialize the Phase 2 (rectangle detection) result.
+
+    Carries every rectangular candidate with its geometry and detection
+    metadata, the phase report (summary, duplicate/nesting relationships and
+    detection parameters) and the four generated overlays as PNG data URIs.
+    Candidates are never removed: duplicates stay in the list, flagged with
+    ``duplicate_of``.
+    """
+    return {
+        "phase": {"number": 2, "name": "rectangle_detection"},
+        "rectangles": result.metadata["rectangles"],
+        "report": result.report,
+        "images": {
+            "overlay": _image_payload(result.overlay, RECTANGLES_OVERLAY_FILENAME),
+            "small": _image_payload(result.small_view, SMALL_RECTANGLES_FILENAME),
+            "medium": _image_payload(result.medium_view, MEDIUM_RECTANGLES_FILENAME),
+            "large": _image_payload(result.large_view, LARGE_RECTANGLES_FILENAME),
+        },
+    }
+
+
 def _image_payload(image: Image.Image, filename: str) -> JsonDict:
     data = base64.b64encode(png_bytes(image)).decode("ascii")
     return {
@@ -238,6 +267,7 @@ __all__ = [
     "from_file",
     "from_json",
     "parse2d_to_dict",
+    "rectangles_to_dict",
     "to_file",
     "to_json",
     "wall_to_dict",

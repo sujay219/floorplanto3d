@@ -1,0 +1,67 @@
+{
+  "phase": {
+    "number": 2,
+    "name": "rectangle_detection"
+  },
+  "summary": {
+    "total_rectangles": 45,
+    "drawn_rectangles": 45,
+    "by_category": {
+      "small": 45,
+      "medium": 0,
+      "large": 0
+    },
+    "by_method": {
+      "contour_polygon": 44,
+      "contour_min_area_rect": 1
+    },
+    "duplicate_count": 0,
+    "nested_count": 1
+  },
+  "duplicates": [],
+  "nested": [
+    {
+      "outer": "rect_002",
+      "inner": "rect_009",
+      "containment": 0.9544
+    }
+  ],
+  "input": {
+    "original_width": 1356,
+    "original_height": 1708,
+    "normalized_width": 1356,
+    "normalized_height": 1708
+  },
+  "parameters": {
+    "ink_threshold": "otsu",
+    "otsu_threshold": 152.0,
+    "min_area_px": 463.2,
+    "max_area_px": 2269727.0,
+    "min_side_px": 5,
+    "min_rectangularity": 0.7,
+    "approx_epsilon_scales": [
+      0.01,
+      0.02,
+      0.04,
+      0.08
+    ],
+    "region_close_scales": [
+      0.005,
+      0.015,
+      0.035
+    ],
+    "small_area_fraction_max": 0.01,
+    "large_area_fraction_min": 0.05,
+    "duplicate_iou": 0.85,
+    "duplicate_containment": 0.95,
+    "duplicate_area_ratio": 0.75,
+    "nested_containment": 0.9,
+    "methods": [
+      "contour_polygon",
+      "contour_min_area_rect",
+      "region_component"
+    ],
+    "coordinate_space": "original",
+    "scale_from_normalized": 1.0
+  }
+}

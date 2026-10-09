@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { detectFloorPlan2D } from './detect2d';
-import type { Detect2DReport, Detect2DResult } from './detect2d';
+import { detectFloorPlan2D, detectRectangles } from './detect2d';
+import type { Detect2DReport, Detect2DResult, RectanglesResult } from './detect2d';
 
 type Status = 'idle' | 'processing' | 'ready' | 'error';
 
@@ -61,11 +61,98 @@ const ReportPanel = ({ report }: { report: Detect2DReport }) => {
   );
 };
 
+const RelationshipList = ({
+  label,
+  pairs,
+}: {
+  label: string;
+  pairs: { text: string }[];
+}) => {
+  if (pairs.length === 0) {
+    return null;
+  }
+
+  return (
+    <p className="detect2d-relationships">
+      <strong>{label}:</strong> {pairs.slice(0, 6).map((pair) => pair.text).join(' · ')}
+      {pairs.length > 6 ? ` · +${pairs.length - 6} more` : ''}
+    </p>
+  );
+};
+
+const Phase2Results = ({ result }: { result: RectanglesResult }) => {
+  const { summary, duplicates, nested, parameters } = result.report;
+
+  return (
+    <section className="detect2d-phase2">
+      <div className="detect2d-phase2-head">
+        <h2>Phase 2 · rectangle candidates</h2>
+        <div className="detect2d-chips">
+          <span className="detect2d-chip">
+            {summary.total_rectangles} candidates ({summary.drawn_rectangles} drawn)
+          </span>
+          <span className="detect2d-chip detect2d-chip-small">small {summary.by_category.small}</span>
+          <span className="detect2d-chip detect2d-chip-medium">medium {summary.by_category.medium}</span>
+          <span className="detect2d-chip detect2d-chip-large">large {summary.by_category.large}</span>
+          <span className="detect2d-chip">{summary.duplicate_count} duplicates</span>
+          <span className="detect2d-chip">{summary.nested_count} nested</span>
+        </div>
+        <RelationshipList
+          label="Obvious duplicates"
+          pairs={duplicates.map((pair) => ({
+            text: `${pair.duplicate} = ${pair.representative} (IoU ${pair.iou.toFixed(2)})`,
+          }))}
+        />
+        <RelationshipList
+          label="Nested"
+          pairs={nested.map((pair) => ({
+            text: `${pair.inner} in ${pair.outer} (${(pair.containment * 100).toFixed(0)}%)`,
+          }))}
+        />
+        <details className="detect2d-params">
+          <summary>Detection parameters</summary>
+          <dl>
+            {Object.entries(parameters).map(([key, value]) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>{Array.isArray(value) ? value.join(', ') : String(value)}</dd>
+              </div>
+            ))}
+          </dl>
+        </details>
+      </div>
+      <img
+        className="detect2d-image"
+        src={result.images.overlay.data}
+        alt="Rectangle candidates with IDs drawn over the original floor plan"
+      />
+      <div className="detect2d-view-grid">
+        <figure className="detect2d-view">
+          <figcaption>small candidates</figcaption>
+          <img src={result.images.small.data} alt="Small rectangle candidates" />
+        </figure>
+        <figure className="detect2d-view">
+          <figcaption>medium candidates</figcaption>
+          <img src={result.images.medium.data} alt="Medium rectangle candidates" />
+        </figure>
+        <figure className="detect2d-view">
+          <figcaption>large candidates</figcaption>
+          <img src={result.images.large.data} alt="Large rectangle candidates" />
+        </figure>
+      </div>
+    </section>
+  );
+};
+
 const Detect2DPage = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [result, setResult] = useState<Detect2DResult | null>(null);
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [rectResult, setRectResult] = useState<RectanglesResult | null>(null);
+  const [rectStatus, setRectStatus] = useState<Status>('idle');
+  const [rectError, setRectError] = useState<string | null>(null);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -81,6 +168,10 @@ const Detect2DPage = () => {
 
     setError(null);
     setStatus('processing');
+    setSourceFile(file);
+    setRectResult(null);
+    setRectStatus('idle');
+    setRectError(null);
 
     try {
       const detected = await detectFloorPlan2D(file);
@@ -89,6 +180,24 @@ const Detect2DPage = () => {
     } catch (err) {
       setStatus('error');
       setError(err instanceof Error ? err.message : 'Failed to normalize the floor plan.');
+    }
+  };
+
+  const handleDetectRectangles = async () => {
+    if (!sourceFile) {
+      return;
+    }
+
+    setRectError(null);
+    setRectStatus('processing');
+
+    try {
+      const detected = await detectRectangles(sourceFile);
+      setRectResult(detected);
+      setRectStatus('ready');
+    } catch (err) {
+      setRectStatus('error');
+      setRectError(err instanceof Error ? err.message : 'Failed to detect rectangles.');
     }
   };
 
@@ -156,6 +265,22 @@ const Detect2DPage = () => {
           </footer>
         </section>
       </div>
+      {rectResult ? <Phase2Results result={rectResult} /> : null}
+      <footer className="detect2d-bottombar">
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => void handleDetectRectangles()}
+          disabled={!sourceFile || rectStatus === 'processing'}
+        >
+          {rectStatus === 'processing' ? 'Detecting rectangles…' : 'Detect rectangles'}
+        </button>
+        <span className="detect2d-bottombar-hint">
+          {rectStatus === 'error' && rectError
+            ? rectError
+            : 'Phase 2 · rectangle candidates on the normalized image (nothing is removed)'}
+        </span>
+      </footer>
     </main>
   );
 };

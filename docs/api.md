@@ -340,6 +340,97 @@ as PNG data URIs. `inspection.wall_thickness` is a stroke-width estimate for
 inspection only; no wall detection has run. Errors are identical to
 `/process-floorplan`.
 
+### `POST /detect2d/rectangles`
+
+`multipart/form-data` with a required `image` file. Same accepted content types
+and 50 MB cap as `/detect2d`, no scale parameters.
+
+Runs **Phase 2 (rectangle detection)**: the upload is normalized (Phase 1 input
+stage), rectangular candidates are detected on the normalized image at
+multiple scales (small structures such as tables and furniture, medium such as
+beds and fixtures, large such as rooms and balconies) and drawn as labelled
+outlines over the unmodified original image. Detection combines ink-contour
+polygon approximation, rotated minimum-area rectangles and sealed background
+components; rotated rectangles are supported. Candidates are inspection data
+only: nothing is removed from any image, and no semantic label ("bedroom",
+"furniture", ...) is assigned.
+
+```bash
+curl -F "image=@plan.png" http://localhost:8000/detect2d/rectangles
+```
+
+```json
+{
+  "phase": { "number": 2, "name": "rectangle_detection" },
+  "rectangles": [
+    {
+      "id": "rect_001",
+      "category": "large",
+      "bbox": { "x": 118, "y": 96, "width": 1120, "height": 1420 },
+      "corners": [
+        { "x": 118.0, "y": 96.0 },
+        { "x": 1238.0, "y": 96.0 },
+        { "x": 1238.0, "y": 1516.0 },
+        { "x": 118.0, "y": 1516.0 }
+      ],
+      "width": 1120.0,
+      "height": 1420.0,
+      "area": 1590400.0,
+      "aspect_ratio": 1.2679,
+      "angle_deg": 0.0,
+      "axis_aligned": true,
+      "method": "contour_polygon",
+      "quality_score": 0.9987,
+      "duplicate_of": null,
+      "nested_in": null
+    }
+  ],
+  "report": {
+    "summary": {
+      "total_rectangles": 87,
+      "drawn_rectangles": 61,
+      "by_category": { "small": 42, "medium": 31, "large": 14 },
+      "by_method": { "contour_polygon": 55, "contour_min_area_rect": 12, "region_component": 20 },
+      "duplicate_count": 26,
+      "nested_count": 18
+    },
+    "duplicates": [
+      { "representative": "rect_001", "duplicate": "rect_014", "method": "region_component", "iou": 0.9412, "area_ratio": 0.9412 }
+    ],
+    "nested": [
+      { "outer": "rect_001", "inner": "rect_007", "containment": 1.0 }
+    ],
+    "input": {
+      "original_width": 1356,
+      "original_height": 1708,
+      "normalized_width": 1356,
+      "normalized_height": 1708
+    },
+    "parameters": { "ink_threshold": "otsu", "min_rectangularity": 0.7, "...": "..." }
+  },
+  "images": {
+    "overlay": { "filename": "rectangles_overlay.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "small": { "filename": "small_rectangles.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "medium": { "filename": "medium_rectangles.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "large": { "filename": "large_rectangles.png", "media_type": "image/png", "data": "data:image/png;base64,..." }
+  }
+}
+```
+
+`rectangles` is the `rectangles.json` document: every candidate with a unique
+ID, axis-aligned `bbox` and rotated `corners`, `width` (longer side), `height`,
+`area`, `aspect_ratio`, `angle_deg` (long-side direction in original-image
+coordinates, folded to (-90, 90], 0 = axis-aligned), the detection `method`
+(`contour_polygon`, `contour_min_area_rect` or `region_component`) and a
+geometric `quality_score` (shape area over rectangle area, not a semantic
+confidence). No candidate is ever dropped: duplicates stay in the list flagged
+with `duplicate_of`, nested rectangles carry `nested_in`. `report` is the
+`rectangle_report.json` document: counts by size category and method, the
+obvious duplicate and nested pairs, and every detection parameter. `images`
+carries the four overlays (outlines and IDs drawn on a copy of the original,
+colour-coded by size, never filled) as PNG data URIs. Errors are identical to
+`/process-floorplan`.
+
 ### Errors
 
 Every failure returns a structured body and never a stack trace.

@@ -1,0 +1,42 @@
+{
+  "phase": {
+    "number": 2,
+    "name": "wall_detection"
+  },
+  "steps": {
+    "a": "foreground mask (adaptive primary, global comparison); furniture and text preserved, nothing removed",
+    "b": "long horizontal and vertical strokes by morphological opening (diagnostic only, not for the room extractor)",
+    "c": "not implemented (wall-candidate identification follows after these outputs have been inspected)"
+  },
+  "input": {
+    "original_width": 800,
+    "original_height": 600,
+    "normalized_width": 800,
+    "normalized_height": 600,
+    "coordinate_space": "normalized"
+  },
+  "parameters": {
+    "adaptive_block_size": 31,
+    "adaptive_c": 9,
+    "global_threshold_method": "otsu",
+    "global_threshold_value": 0.0,
+    "horizontal_kernel": [
+      35,
+      1
+    ],
+    "vertical_kernel": [
+      1,
+      35
+    ],
+    "morph_operation": "open"
+  },
+  "summary": {
+    "foreground_pixels_adaptive": 28689,
+    "foreground_fraction_adaptive": 0.059769,
+    "foreground_pixels_global": 28689,
+    "foreground_fraction_global": 0.059769,
+    "horizontal_pixels": 17393,
+    "vertical_pixels": 11993,
+    "combined_pixels": 28689
+  }
+}

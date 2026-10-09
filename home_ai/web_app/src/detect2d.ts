@@ -66,53 +66,30 @@ export interface Detect2DResult {
   };
 }
 
-export interface RectangleRecord {
-  id: string;
-  category: 'small' | 'medium' | 'large';
-  bbox: { x: number; y: number; width: number; height: number };
-  corners: { x: number; y: number }[];
-  width: number;
-  height: number;
-  area: number;
-  aspect_ratio: number;
-  angle_deg: number;
-  axis_aligned: boolean;
-  method: string;
-  quality_score: number;
-  duplicate_of?: string;
-  nested_in?: string;
-}
-
-export interface RectanglesReport {
+export interface WallDetectionReport {
   phase: { number: number; name: string };
-  summary: {
-    total_rectangles: number;
-    drawn_rectangles: number;
-    by_category: { small: number; medium: number; large: number };
-    by_method: Record<string, number>;
-    duplicate_count: number;
-    nested_count: number;
-  };
-  duplicates: { representative: string; duplicate: string; method: string; iou: number; area_ratio: number }[];
-  nested: { outer: string; inner: string; containment: number }[];
+  steps: { a: string; b: string; c: string };
   input: {
     original_width: number;
     original_height: number;
     normalized_width: number;
     normalized_height: number;
+    coordinate_space: string;
   };
   parameters: Record<string, number | string | number[] | string[]>;
+  summary: Record<string, number>;
 }
 
-export interface RectanglesResult {
+export interface WallDetectionResult {
   phase: { number: number; name: string };
-  rectangles: RectangleRecord[];
-  report: RectanglesReport;
+  report: WallDetectionReport;
   images: {
-    overlay: Detect2DImagePayload;
-    small: Detect2DImagePayload;
-    medium: Detect2DImagePayload;
-    large: Detect2DImagePayload;
+    foreground_mask: Detect2DImagePayload;
+    foreground_mask_global: Detect2DImagePayload;
+    foreground_mask_comparison: Detect2DImagePayload;
+    horizontal: Detect2DImagePayload;
+    vertical: Detect2DImagePayload;
+    combined: Detect2DImagePayload;
   };
 }
 
@@ -135,11 +112,11 @@ export async function detectFloorPlan2D(file: File): Promise<Detect2DResult> {
   return payload as Detect2DResult;
 }
 
-export async function detectRectangles(file: File): Promise<RectanglesResult> {
+export async function detectWalls(file: File): Promise<WallDetectionResult> {
   const formData = new FormData();
   formData.append('image', file);
 
-  const response = await fetch(`${FLOORPLAN_URL}/detect2d/rectangles`, {
+  const response = await fetch(`${FLOORPLAN_URL}/detect2d/walls`, {
     method: 'POST',
     body: formData,
   });
@@ -147,9 +124,9 @@ export async function detectRectangles(file: File): Promise<RectanglesResult> {
   const payload = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message = payload?.error?.message ?? `FloorPlanTo3D /detect2d/rectangles failed (${response.status})`;
+    const message = payload?.error?.message ?? `FloorPlanTo3D /detect2d/walls failed (${response.status})`;
     throw new Error(message);
   }
 
-  return payload as RectanglesResult;
+  return payload as WallDetectionResult;
 }

@@ -98,8 +98,8 @@ OVERLAY_LEGEND_BG = (255, 255, 255)
 OVERLAY_LEGEND_TEXT = (32, 32, 32)
 LINE_THICKNESS_FRACTION = 0.002
 LINE_THICKNESS_MIN_PX = 2
-FONT_SCALE_FRACTION = 0.006
-FONT_SCALE_MIN = 0.5
+FONT_SCALE_FRACTION = 0.0002
+FONT_SCALE_MIN = 0.03
 LABEL_GAP_PX = 4
 
 # Saved artifact filenames.
@@ -223,7 +223,7 @@ def detect_rectangles(
         counts=_count_categories(representatives),
     )
     small_view = _draw_view(
-        base_rgb, representatives, title="small candidates", only="small"
+        base_rgb, representatives, title="small c", only="small"
     )
     medium_view = _draw_view(
         base_rgb, representatives, title="medium candidates", only="medium"

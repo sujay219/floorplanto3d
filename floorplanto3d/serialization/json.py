@@ -32,6 +32,15 @@ from floorplanto3d.processing.rectangles import (
     SMALL_RECTANGLES_FILENAME,
     RectangleDetectionResult,
 )
+from floorplanto3d.processing.wall_detection import (
+    COMBINED_STRUCTURES_FILENAME,
+    FOREGROUND_MASK_COMPARISON_FILENAME,
+    FOREGROUND_MASK_FILENAME,
+    FOREGROUND_MASK_GLOBAL_FILENAME,
+    HORIZONTAL_STRUCTURES_FILENAME,
+    VERTICAL_STRUCTURES_FILENAME,
+    WallDetectionResult,
+)
 
 JsonDict = dict[str, Any]
 
@@ -176,6 +185,36 @@ def rectangles_to_dict(result: RectangleDetectionResult) -> JsonDict:
     }
 
 
+def wall_detection_to_dict(result: WallDetectionResult) -> JsonDict:
+    """Serialize the Phase 2 (wall detection) result.
+
+    Carries the phase report (input dimensions, thresholding parameters and
+    ink summaries) together with the six generated diagnostic masks as PNG
+    data URIs. No wall candidates exist at this stage: the outputs are the
+    Step A foreground masks and the Step B axis-structure masks only.
+    """
+    return {
+        "phase": {"number": 2, "name": "wall_detection"},
+        "report": result.report,
+        "images": {
+            "foreground_mask": _image_payload(
+                result.foreground_mask, FOREGROUND_MASK_FILENAME
+            ),
+            "foreground_mask_global": _image_payload(
+                result.global_mask, FOREGROUND_MASK_GLOBAL_FILENAME
+            ),
+            "foreground_mask_comparison": _image_payload(
+                result.mask_comparison, FOREGROUND_MASK_COMPARISON_FILENAME
+            ),
+            "horizontal": _image_payload(
+                result.horizontal, HORIZONTAL_STRUCTURES_FILENAME
+            ),
+            "vertical": _image_payload(result.vertical, VERTICAL_STRUCTURES_FILENAME),
+            "combined": _image_payload(result.combined, COMBINED_STRUCTURES_FILENAME),
+        },
+    }
+
+
 def _image_payload(image: Image.Image, filename: str) -> JsonDict:
     data = base64.b64encode(png_bytes(image)).decode("ascii")
     return {
@@ -270,5 +309,6 @@ __all__ = [
     "rectangles_to_dict",
     "to_file",
     "to_json",
+    "wall_detection_to_dict",
     "wall_to_dict",
 ]

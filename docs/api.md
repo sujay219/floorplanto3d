@@ -340,6 +340,75 @@ as PNG data URIs. `inspection.wall_thickness` is a stroke-width estimate for
 inspection only; no wall detection has run. Errors are identical to
 `/process-floorplan`.
 
+### `POST /detect2d/walls`
+
+`multipart/form-data` with a required `image` file. Same accepted content types
+and 50 MB cap as `/detect2d`, no scale parameters.
+
+Runs **Phase 2 (wall detection)**: the upload is normalized (Phase 1 input
+stage), then Step A separates dark drawing pixels from the light background
+(adaptive thresholding as the primary mask, global Otsu thresholding kept
+beside it for comparison) and Step B extracts long horizontal and vertical
+strokes by morphological opening. These are diagnostic masks only: furniture
+and text are preserved, nothing is removed from any image, and no wall
+candidates are decided yet — Step C (wall-candidate identification) follows
+only after these outputs have been inspected. The combined mask is never fed
+to the room extractor.
+
+```bash
+curl -F "image=@plan.png" http://localhost:8000/detect2d/walls
+```
+
+```json
+{
+  "phase": { "number": 2, "name": "wall_detection" },
+  "report": {
+    "steps": { "a": "...", "b": "...", "c": "not implemented (wall-candidate identification follows after these outputs have been inspected)" },
+    "input": {
+      "original_width": 1108,
+      "original_height": 1340,
+      "normalized_width": 1108,
+      "normalized_height": 1340,
+      "coordinate_space": "normalized"
+    },
+    "parameters": {
+      "adaptive_block_size": 31,
+      "adaptive_c": 9,
+      "global_threshold_method": "otsu",
+      "global_threshold_value": 134.0,
+      "horizontal_kernel": [35, 1],
+      "vertical_kernel": [1, 35],
+      "morph_operation": "open"
+    },
+    "summary": {
+      "foreground_pixels_adaptive": 245573,
+      "foreground_fraction_adaptive": 0.1654,
+      "foreground_pixels_global": 273814,
+      "foreground_fraction_global": 0.1844,
+      "horizontal_pixels": 97769,
+      "vertical_pixels": 65277,
+      "combined_pixels": 158113
+    }
+  },
+  "images": {
+    "foreground_mask": { "filename": "01_foreground_mask.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "foreground_mask_global": { "filename": "01_foreground_mask_global.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "foreground_mask_comparison": { "filename": "01_foreground_mask_comparison.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "horizontal": { "filename": "02_horizontal.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "vertical": { "filename": "03_vertical.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "combined": { "filename": "04_combined.png", "media_type": "image/png", "data": "data:image/png;base64,..." }
+  }
+}
+```
+
+`report` is the `wall_report.json` document: input dimensions, the
+thresholding and kernel parameters (starting values, pending tuning) and
+pixel summaries of each mask. `images` carries the six diagnostic masks as
+PNG data URIs — Step A's adaptive and global foreground masks plus their
+side-by-side comparison, then Step B's horizontal, vertical and combined
+structure masks. All masks use the normalized image's coordinate space
+(255 = ink). Errors are identical to `/process-floorplan`.
+
 ### `POST /detect2d/rectangles`
 
 `multipart/form-data` with a required `image` file. Same accepted content types

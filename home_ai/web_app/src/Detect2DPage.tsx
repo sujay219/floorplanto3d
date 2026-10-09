@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
-import { detectFloorPlan2D, detectRectangles } from './detect2d';
-import type { Detect2DReport, Detect2DResult, RectanglesResult } from './detect2d';
+import { detectFloorPlan2D, detectWalls } from './detect2d';
+import type { Detect2DReport, Detect2DResult, WallDetectionResult } from './detect2d';
 
 type Status = 'idle' | 'processing' | 'ready' | 'error';
 
@@ -61,54 +61,21 @@ const ReportPanel = ({ report }: { report: Detect2DReport }) => {
   );
 };
 
-const RelationshipList = ({
-  label,
-  pairs,
-}: {
-  label: string;
-  pairs: { text: string }[];
-}) => {
-  if (pairs.length === 0) {
-    return null;
-  }
-
-  return (
-    <p className="detect2d-relationships">
-      <strong>{label}:</strong> {pairs.slice(0, 6).map((pair) => pair.text).join(' · ')}
-      {pairs.length > 6 ? ` · +${pairs.length - 6} more` : ''}
-    </p>
-  );
-};
-
-const Phase2Results = ({ result }: { result: RectanglesResult }) => {
-  const { summary, duplicates, nested, parameters } = result.report;
+const Phase2Results = ({ result }: { result: WallDetectionResult }) => {
+  const { summary, parameters } = result.report;
+  const percent = (fraction: number) => `${(fraction * 100).toFixed(1)}%`;
 
   return (
     <section className="detect2d-phase2">
       <div className="detect2d-phase2-head">
-        <h2>Phase 2 · rectangle candidates</h2>
+        <h2>Phase 2 · wall detection (Steps A + B)</h2>
         <div className="detect2d-chips">
-          <span className="detect2d-chip">
-            {summary.total_rectangles} candidates ({summary.drawn_rectangles} drawn)
-          </span>
-          <span className="detect2d-chip detect2d-chip-small">small {summary.by_category.small}</span>
-          <span className="detect2d-chip detect2d-chip-medium">medium {summary.by_category.medium}</span>
-          <span className="detect2d-chip detect2d-chip-large">large {summary.by_category.large}</span>
-          <span className="detect2d-chip">{summary.duplicate_count} duplicates</span>
-          <span className="detect2d-chip">{summary.nested_count} nested</span>
+          <span className="detect2d-chip">ink {percent(summary.foreground_fraction_adaptive)} adaptive</span>
+          <span className="detect2d-chip">ink {percent(summary.foreground_fraction_global)} global</span>
+          <span className="detect2d-chip">horizontal {summary.horizontal_pixels} px</span>
+          <span className="detect2d-chip">vertical {summary.vertical_pixels} px</span>
+          <span className="detect2d-chip">combined {summary.combined_pixels} px</span>
         </div>
-        <RelationshipList
-          label="Obvious duplicates"
-          pairs={duplicates.map((pair) => ({
-            text: `${pair.duplicate} = ${pair.representative} (IoU ${pair.iou.toFixed(2)})`,
-          }))}
-        />
-        <RelationshipList
-          label="Nested"
-          pairs={nested.map((pair) => ({
-            text: `${pair.inner} in ${pair.outer} (${(pair.containment * 100).toFixed(0)}%)`,
-          }))}
-        />
         <details className="detect2d-params">
           <summary>Detection parameters</summary>
           <dl>
@@ -123,21 +90,31 @@ const Phase2Results = ({ result }: { result: RectanglesResult }) => {
       </div>
       <img
         className="detect2d-image"
-        src={result.images.overlay.data}
-        alt="Rectangle candidates with IDs drawn over the original floor plan"
+        src={result.images.foreground_mask_comparison.data}
+        alt="Foreground masks: adaptive and global thresholding side by side"
       />
       <div className="detect2d-view-grid">
         <figure className="detect2d-view">
-          <figcaption>small candidates</figcaption>
-          <img src={result.images.small.data} alt="Small rectangle candidates" />
+          <figcaption>Step A · foreground mask (adaptive)</figcaption>
+          <img src={result.images.foreground_mask.data} alt="Adaptive foreground mask" />
         </figure>
         <figure className="detect2d-view">
-          <figcaption>medium candidates</figcaption>
-          <img src={result.images.medium.data} alt="Medium rectangle candidates" />
+          <figcaption>Step A · foreground mask (global)</figcaption>
+          <img src={result.images.foreground_mask_global.data} alt="Global foreground mask" />
+        </figure>
+      </div>
+      <div className="detect2d-view-grid">
+        <figure className="detect2d-view">
+          <figcaption>Step B · horizontal structures</figcaption>
+          <img src={result.images.horizontal.data} alt="Long horizontal structures" />
         </figure>
         <figure className="detect2d-view">
-          <figcaption>large candidates</figcaption>
-          <img src={result.images.large.data} alt="Large rectangle candidates" />
+          <figcaption>Step B · vertical structures</figcaption>
+          <img src={result.images.vertical.data} alt="Long vertical structures" />
+        </figure>
+        <figure className="detect2d-view">
+          <figcaption>Step B · combined (diagnostic only)</figcaption>
+          <img src={result.images.combined.data} alt="Combined axis structures" />
         </figure>
       </div>
     </section>
@@ -150,9 +127,9 @@ const Detect2DPage = () => {
   const [status, setStatus] = useState<Status>('idle');
   const [error, setError] = useState<string | null>(null);
   const [sourceFile, setSourceFile] = useState<File | null>(null);
-  const [rectResult, setRectResult] = useState<RectanglesResult | null>(null);
-  const [rectStatus, setRectStatus] = useState<Status>('idle');
-  const [rectError, setRectError] = useState<string | null>(null);
+  const [wallResult, setWallResult] = useState<WallDetectionResult | null>(null);
+  const [wallStatus, setWallStatus] = useState<Status>('idle');
+  const [wallError, setWallError] = useState<string | null>(null);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -169,9 +146,9 @@ const Detect2DPage = () => {
     setError(null);
     setStatus('processing');
     setSourceFile(file);
-    setRectResult(null);
-    setRectStatus('idle');
-    setRectError(null);
+    setWallResult(null);
+    setWallStatus('idle');
+    setWallError(null);
 
     try {
       const detected = await detectFloorPlan2D(file);
@@ -183,21 +160,21 @@ const Detect2DPage = () => {
     }
   };
 
-  const handleDetectRectangles = async () => {
+  const handleDetectWalls = async () => {
     if (!sourceFile) {
       return;
     }
 
-    setRectError(null);
-    setRectStatus('processing');
+    setWallError(null);
+    setWallStatus('processing');
 
     try {
-      const detected = await detectRectangles(sourceFile);
-      setRectResult(detected);
-      setRectStatus('ready');
+      const detected = await detectWalls(sourceFile);
+      setWallResult(detected);
+      setWallStatus('ready');
     } catch (err) {
-      setRectStatus('error');
-      setRectError(err instanceof Error ? err.message : 'Failed to detect rectangles.');
+      setWallStatus('error');
+      setWallError(err instanceof Error ? err.message : 'Failed to detect walls.');
     }
   };
 
@@ -265,20 +242,20 @@ const Detect2DPage = () => {
           </footer>
         </section>
       </div>
-      {rectResult ? <Phase2Results result={rectResult} /> : null}
+      {wallResult ? <Phase2Results result={wallResult} /> : null}
       <footer className="detect2d-bottombar">
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => void handleDetectRectangles()}
-          disabled={!sourceFile || rectStatus === 'processing'}
+          onClick={() => void handleDetectWalls()}
+          disabled={!sourceFile || wallStatus === 'processing'}
         >
-          {rectStatus === 'processing' ? 'Detecting rectangles…' : 'Detect rectangles'}
+          {wallStatus === 'processing' ? 'Detecting walls…' : 'Detect walls'}
         </button>
         <span className="detect2d-bottombar-hint">
-          {rectStatus === 'error' && rectError
-            ? rectError
-            : 'Phase 2 · rectangle candidates on the normalized image (nothing is removed)'}
+          {wallStatus === 'error' && wallError
+            ? wallError
+            : 'Phase 2 · wall-structure diagnostics on the normalized image (nothing is removed)'}
         </span>
       </footer>
     </main>

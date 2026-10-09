@@ -30,11 +30,13 @@ from floorplanto3d.models.floor_plan import SCHEMA_VERSION, Units
 from floorplanto3d.pipeline.processor import FloorPlanProcessor
 from floorplanto3d.processing.normalize import normalize_image
 from floorplanto3d.processing.rectangles import detect_rectangles
+from floorplanto3d.processing.wall_detection import detect_walls
 from floorplanto3d.serialization.json import (
     detect2d_to_dict,
     floor_plan_to_dict,
     parse2d_to_dict,
     rectangles_to_dict,
+    wall_detection_to_dict,
 )
 
 logger = get_logger("api")
@@ -342,6 +344,39 @@ def create_app(*, fail_on_empty: bool = False) -> FastAPI:
         )
 
         return JSONResponse(content=rectangles_to_dict(result))
+
+    @application.post("/detect2d/walls")
+    async def detect2d_walls(
+        request: Request,
+        image: Annotated[UploadFile, File(description="Floor plan image")],
+    ) -> JSONResponse:
+        """Run Phase 2 (wall detection) on a floor plan.
+
+        Normalizes the upload (Phase 1 input stage), then separates dark
+        drawing pixels from the background (Step A) and extracts long
+        horizontal and vertical structures (Step B), as described in
+        ``docs/api.md``. These are diagnostic masks only: furniture and
+        text are preserved, nothing is removed, and no wall candidates are
+        decided yet — that is Step C, pending inspection of these outputs.
+        """
+        started = time.perf_counter()
+        contents, _ = await _read_upload(request, image)
+
+        normalization = normalize_image(contents)
+        result = detect_walls(normalization.normalized, normalization.original)
+
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        logger.info(
+            "request.completed",
+            extra={
+                "duration_ms": round(elapsed_ms, 2),
+                "image_width": result.report["input"]["original_width"],
+                "image_height": result.report["input"]["original_height"],
+                "phase": "wall_detection",
+            },
+        )
+
+        return JSONResponse(content=wall_detection_to_dict(result))
 
     return application
 

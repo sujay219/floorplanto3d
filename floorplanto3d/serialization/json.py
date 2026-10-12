@@ -32,6 +32,10 @@ from floorplanto3d.processing.rectangles import (
     SMALL_RECTANGLES_FILENAME,
     RectangleDetectionResult,
 )
+from floorplanto3d.processing.wall_candidates import (
+    CANDIDATES_OVERLAY_FILENAME,
+    WallCandidateDetectionResult,
+)
 from floorplanto3d.processing.wall_detection import (
     COMBINED_STRUCTURES_FILENAME,
     FOREGROUND_MASK_COMPARISON_FILENAME,
@@ -40,6 +44,10 @@ from floorplanto3d.processing.wall_detection import (
     HORIZONTAL_STRUCTURES_FILENAME,
     VERTICAL_STRUCTURES_FILENAME,
     WallDetectionResult,
+)
+from floorplanto3d.processing.wall_segments import (
+    WallSegmentationResult,
+    segment_to_dict,
 )
 
 JsonDict = dict[str, Any]
@@ -215,6 +223,50 @@ def wall_detection_to_dict(result: WallDetectionResult) -> JsonDict:
     }
 
 
+def wall_candidates_to_dict(result: WallCandidateDetectionResult) -> JsonDict:
+    """Serialize the Phase 2 (wall detection), Step C result.
+
+    Carries every geometric stroke candidate with its measurements and
+    evidence, the phase report (summary, parameters and limitations) and
+    the candidate overlay as a PNG data URI. Candidates are proposals
+    only: nothing is classified and nothing is discarded.
+    """
+    return {
+        "phase": {"number": 3, "name": "wall_candidates", "step": "c"},
+        "candidates": result.candidates_document["candidates"],
+        "report": result.report,
+        "images": {
+            "overlay": _image_payload(result.overlay, CANDIDATES_OVERLAY_FILENAME),
+        },
+    }
+
+
+def wall_detector_to_dict(
+    normalization: NormalizationResult,
+    walls: WallDetectionResult,
+    segmentation: WallSegmentationResult,
+) -> JsonDict:
+    """Serialize the wall-detector view of one floor plan.
+
+    Carries the Phase 1 ``normalized.png`` and the Step B
+    ``04_combined.png`` mask side by side with every measured wall stroke
+    of the masks, so a client can threshold strokes (by thickness, length,
+    ...) and redraw the survivors itself. Strokes are in the normalized
+    image's pixel space — the same space as the two images — so a client
+    filtering by erasing failing strokes reproduces ``04_combined.png``
+    exactly when no threshold is applied.
+    """
+    return {
+        "phase": {"number": 3, "name": "wall_detector"},
+        "images": {
+            "normalized": _image_payload(normalization.normalized, NORMALIZED_FILENAME),
+            "combined": _image_payload(walls.combined, COMBINED_STRUCTURES_FILENAME),
+        },
+        "segments": [segment_to_dict(segment) for segment in segmentation.segments],
+        "report": segmentation.report,
+    }
+
+
 def _image_payload(image: Image.Image, filename: str) -> JsonDict:
     data = base64.b64encode(png_bytes(image)).decode("ascii")
     return {
@@ -309,6 +361,8 @@ __all__ = [
     "rectangles_to_dict",
     "to_file",
     "to_json",
+    "wall_candidates_to_dict",
     "wall_detection_to_dict",
+    "wall_detector_to_dict",
     "wall_to_dict",
 ]

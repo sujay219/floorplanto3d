@@ -5,6 +5,7 @@ import type { Scene } from '@home-ai/scene-schema';
 import { developmentScene } from './mock-scene';
 import { processFloorPlanImage } from './floorplan';
 import { Detect2DPage } from './Detect2DPage';
+import { WallDetectorPage } from './WallDetectorPage';
 import './styles.css';
 
 type Status = 'idle' | 'processing' | 'ready' | 'error';
@@ -272,7 +273,8 @@ const App = () => {
 };
 
 const path = window.location.pathname.replace(/\/+$/, '') || '/';
-const Page = path === '/detect2d' ? Detect2DPage : App;
+const Page =
+  path === '/detect2d' ? Detect2DPage : path === '/wall_detector' ? WallDetectorPage : App;
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

@@ -10,3 +10,4 @@ venv/
 htmlcov/
 dist/
 build/
+artifacts/

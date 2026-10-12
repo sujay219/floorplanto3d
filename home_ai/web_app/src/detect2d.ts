@@ -1,5 +1,5 @@
 const env = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env ?? {};
-const FLOORPLAN_URL = env.VITE_FLOORPLAN_URL ?? 'http://localhost:8000';
+export const FLOORPLAN_URL = env.VITE_FLOORPLAN_URL ?? 'http://localhost:8000';
 
 export interface Detect2DImagePayload {
   filename: string;
@@ -93,6 +93,69 @@ export interface WallDetectionResult {
   };
 }
 
+export interface WallCandidatePoint {
+  x: number;
+  y: number;
+}
+
+export interface WallCandidate {
+  id: string;
+  geometry: {
+    start: WallCandidatePoint;
+    end: WallCandidatePoint;
+    polygon: WallCandidatePoint[];
+    bbox: { x: number; y: number; width: number; height: number };
+  };
+  length: number;
+  angle_deg: number;
+  orientation: string;
+  estimated_thickness: number;
+  thickness_consistency: number;
+  straightness: number;
+  continuity: number;
+  edge_pairing: {
+    paired: boolean;
+    edge_ids: string[];
+    angle_delta_deg: number | null;
+    distance_px: number | null;
+    overlap_fraction: number | null;
+    score: number;
+    probed_thickness_px?: number;
+  };
+  axis_support: Record<string, number>;
+  confidence: number;
+  confidence_evidence: Record<string, number>;
+  evidence: string[];
+  uncertainty: string[];
+  merged_from: string[];
+}
+
+export interface WallCandidatesReport {
+  phase: { number: number; name: string; step: string };
+  steps: Record<string, string>;
+  summary: {
+    total_candidates: number;
+    paired_edge_candidates: number;
+    single_edge_candidates: number;
+    merged_source_count: number;
+    by_orientation: Record<string, number>;
+    mean_confidence: number;
+    low_confidence_candidates: number;
+  };
+  input: Record<string, number | string>;
+  parameters: Record<string, unknown>;
+  limitations: string[];
+}
+
+export interface WallCandidatesResult {
+  phase: { number: number; name: string; step: string };
+  candidates: WallCandidate[];
+  report: WallCandidatesReport;
+  images: {
+    overlay: Detect2DImagePayload;
+  };
+}
+
 export async function detectFloorPlan2D(file: File): Promise<Detect2DResult> {
   const formData = new FormData();
   formData.append('image', file);
@@ -129,4 +192,24 @@ export async function detectWalls(file: File): Promise<WallDetectionResult> {
   }
 
   return payload as WallDetectionResult;
+}
+
+export async function detectWallCandidates(file: File): Promise<WallCandidatesResult> {
+  const formData = new FormData();
+  formData.append('image', file);
+
+  const response = await fetch(`${FLOORPLAN_URL}/detect2d/wall-candidates`, {
+    method: 'POST',
+    body: formData,
+  });
+
+  const payload = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      payload?.error?.message ?? `FloorPlanTo3D /detect2d/wall-candidates failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  return payload as WallCandidatesResult;
 }

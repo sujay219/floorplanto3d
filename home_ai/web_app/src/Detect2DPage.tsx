@@ -1,11 +1,23 @@
 import React, { useRef, useState } from 'react';
-import { detectFloorPlan2D, detectWalls } from './detect2d';
-import type { Detect2DReport, Detect2DResult, WallDetectionResult } from './detect2d';
+import { detectFloorPlan2D, detectWallCandidates, detectWalls } from './detect2d';
+import type {
+  Detect2DReport,
+  Detect2DResult,
+  WallCandidatesResult,
+  WallDetectionResult,
+} from './detect2d';
 
 type Status = 'idle' | 'processing' | 'ready' | 'error';
 
 const formatNumber = (value: number | null | undefined, digits = 1): string =>
   value === null || value === undefined ? '–' : value.toFixed(digits);
+
+const formatParam = (value: unknown): string =>
+  Array.isArray(value)
+    ? value.join(', ')
+    : typeof value === 'object' && value !== null
+      ? JSON.stringify(value)
+      : String(value);
 
 const ReportPanel = ({ report }: { report: Detect2DReport }) => {
   const { original, normalized, inspection } = report;
@@ -121,6 +133,76 @@ const Phase2Results = ({ result }: { result: WallDetectionResult }) => {
   );
 };
 
+const WallCandidatesResults = ({ result }: { result: WallCandidatesResult }) => {
+  const { summary, parameters, limitations } = result.report;
+
+  return (
+    <section className="detect2d-phase2">
+      <div className="detect2d-phase2-head">
+        <h2>Phase 2 · Step C wall candidates</h2>
+        <div className="detect2d-chips">
+          <span className="detect2d-chip">{summary.total_candidates} candidates</span>
+          <span className="detect2d-chip">{summary.paired_edge_candidates} paired edges</span>
+          <span className="detect2d-chip">{summary.single_edge_candidates} single edge</span>
+          <span className="detect2d-chip">horizontal {summary.by_orientation.horizontal ?? 0}</span>
+          <span className="detect2d-chip">vertical {summary.by_orientation.vertical ?? 0}</span>
+          <span className="detect2d-chip">diagonal {summary.by_orientation.diagonal ?? 0}</span>
+          <span className="detect2d-chip">mean confidence {summary.mean_confidence.toFixed(2)}</span>
+        </div>
+        <p className="detect2d-relationships">
+          <strong>Proposals only</strong> — candidates are geometric stroke proposals, not
+          confirmed walls, and nothing is classified at this step.
+        </p>
+        <details className="detect2d-params">
+          <summary>Detection parameters</summary>
+          <dl>
+            {Object.entries(parameters).map(([key, value]) => (
+              <div key={key}>
+                <dt>{key}</dt>
+                <dd>{formatParam(value)}</dd>
+              </div>
+            ))}
+          </dl>
+          <ul className="detect2d-relationships">
+            {limitations.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </details>
+      </div>
+      <img
+        className="detect2d-image"
+        src={result.images.overlay.data}
+        alt="Wall candidate centrelines overlaid on the original floor plan"
+      />
+      <div className="detect2d-candidates">
+        <div className="detect2d-candidate-row detect2d-candidate-head">
+          <span>ID</span>
+          <span>Orientation</span>
+          <span>Length</span>
+          <span>Thickness</span>
+          <span>Continuity</span>
+          <span>Confidence</span>
+          <span>Edges</span>
+        </div>
+        {result.candidates.map((candidate) => (
+          <div className="detect2d-candidate-row" key={candidate.id}>
+            <span>{candidate.id}</span>
+            <span>
+              {candidate.orientation} {candidate.angle_deg.toFixed(0)}°
+            </span>
+            <span>{candidate.length.toFixed(0)} px</span>
+            <span>{candidate.estimated_thickness.toFixed(1)} px</span>
+            <span>{candidate.continuity.toFixed(2)}</span>
+            <span>{candidate.confidence.toFixed(2)}</span>
+            <span>{candidate.edge_pairing.paired ? 'paired' : 'single'}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
 const Detect2DPage = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [result, setResult] = useState<Detect2DResult | null>(null);
@@ -130,6 +212,9 @@ const Detect2DPage = () => {
   const [wallResult, setWallResult] = useState<WallDetectionResult | null>(null);
   const [wallStatus, setWallStatus] = useState<Status>('idle');
   const [wallError, setWallError] = useState<string | null>(null);
+  const [candidateResult, setCandidateResult] = useState<WallCandidatesResult | null>(null);
+  const [candidateStatus, setCandidateStatus] = useState<Status>('idle');
+  const [candidateError, setCandidateError] = useState<string | null>(null);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -149,6 +234,9 @@ const Detect2DPage = () => {
     setWallResult(null);
     setWallStatus('idle');
     setWallError(null);
+    setCandidateResult(null);
+    setCandidateStatus('idle');
+    setCandidateError(null);
 
     try {
       const detected = await detectFloorPlan2D(file);
@@ -175,6 +263,24 @@ const Detect2DPage = () => {
     } catch (err) {
       setWallStatus('error');
       setWallError(err instanceof Error ? err.message : 'Failed to detect walls.');
+    }
+  };
+
+  const handleDetectCandidates = async () => {
+    if (!sourceFile) {
+      return;
+    }
+
+    setCandidateError(null);
+    setCandidateStatus('processing');
+
+    try {
+      const detected = await detectWallCandidates(sourceFile);
+      setCandidateResult(detected);
+      setCandidateStatus('ready');
+    } catch (err) {
+      setCandidateStatus('error');
+      setCandidateError(err instanceof Error ? err.message : 'Failed to detect wall candidates.');
     }
   };
 
@@ -243,19 +349,33 @@ const Detect2DPage = () => {
         </section>
       </div>
       {wallResult ? <Phase2Results result={wallResult} /> : null}
+      {candidateResult ? <WallCandidatesResults result={candidateResult} /> : null}
       <footer className="detect2d-bottombar">
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => void handleDetectWalls()}
-          disabled={!sourceFile || wallStatus === 'processing'}
+          onClick={() => void (wallResult ? handleDetectCandidates() : handleDetectWalls())}
+          disabled={
+            !sourceFile ||
+            (wallResult ? candidateStatus === 'processing' : wallStatus === 'processing')
+          }
         >
-          {wallStatus === 'processing' ? 'Detecting walls…' : 'Detect walls'}
+          {wallResult
+            ? candidateStatus === 'processing'
+              ? 'Detecting wall candidates…'
+              : 'Detect wall candidate'
+            : wallStatus === 'processing'
+              ? 'Detecting walls…'
+              : 'Detect walls'}
         </button>
         <span className="detect2d-bottombar-hint">
-          {wallStatus === 'error' && wallError
-            ? wallError
-            : 'Phase 2 · wall-structure diagnostics on the normalized image (nothing is removed)'}
+          {wallResult
+            ? candidateStatus === 'error' && candidateError
+              ? candidateError
+              : 'Phase 2 · Step C geometric stroke candidates on the normalized image (proposals, not confirmed walls)'
+            : wallStatus === 'error' && wallError
+              ? wallError
+              : 'Phase 2 · wall-structure diagnostics on the normalized image (nothing is removed)'}
         </span>
       </footer>
     </main>

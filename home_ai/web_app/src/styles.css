@@ -423,6 +423,37 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.detect2d-candidates {
+  max-height: 340px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.detect2d-candidate-row {
+  display: grid;
+  grid-template-columns: 84px 116px 84px 88px 92px 96px 72px;
+  gap: 10px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  border-top: 1px solid var(--border);
+}
+
+.detect2d-candidate-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  border-top: none;
+  background: var(--surface-sunken);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .detect2d-image {
   width: 100%;
   display: block;
@@ -477,6 +508,93 @@ body {
   font-size: 12.5px;
 }
 
+.wall-detector {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.wall-detector-images {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.wall-detector-histograms {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.wall-detector-histogram {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.wall-detector-histogram-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wall-detector-histogram-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.wall-detector-histogram-value {
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+.wall-detector-histogram-chart {
+  width: 100%;
+  height: 120px;
+  display: block;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.wall-detector-slider {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: ew-resize;
+}
+
+.wall-detector-slider:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+.wall-detector-result canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+
+.wall-detector-debug {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
 @media (max-width: 720px) {
   .app {
     padding: 16px;
@@ -499,6 +617,11 @@ body {
   }
 
   .detect2d-view-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wall-detector-images,
+  .wall-detector-histograms {
     grid-template-columns: 1fr;
   }
 

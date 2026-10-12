@@ -10,6 +10,7 @@ from __future__ import annotations
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, UploadFile
@@ -30,13 +31,17 @@ from floorplanto3d.models.floor_plan import SCHEMA_VERSION, Units
 from floorplanto3d.pipeline.processor import FloorPlanProcessor
 from floorplanto3d.processing.normalize import normalize_image
 from floorplanto3d.processing.rectangles import detect_rectangles
+from floorplanto3d.processing.wall_candidates import detect_candidates
 from floorplanto3d.processing.wall_detection import detect_walls
+from floorplanto3d.processing.wall_segments import segment_walls
 from floorplanto3d.serialization.json import (
     detect2d_to_dict,
     floor_plan_to_dict,
     parse2d_to_dict,
     rectangles_to_dict,
+    wall_candidates_to_dict,
     wall_detection_to_dict,
+    wall_detector_to_dict,
 )
 
 logger = get_logger("api")
@@ -58,6 +63,19 @@ ALLOWED_CONTENT_TYPES = frozenset(
 )
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50 MB
+
+# Bundled input for the wall-detector view: no upload, one fixed example.
+EXAMPLE_PLAN_PATH = Path(__file__).resolve().parents[2] / "examples" / "plans" / "real-time.png"
+
+
+def _example_plan_bytes() -> bytes:
+    """Bytes of the bundled example plan used by ``/detect2d/wall-detector``."""
+    if not EXAMPLE_PLAN_PATH.is_file():
+        raise FloorPlanError(
+            f"Example floor plan not found: {EXAMPLE_PLAN_PATH}",
+            path=str(EXAMPLE_PLAN_PATH),
+        )
+    return EXAMPLE_PLAN_PATH.read_bytes()
 
 
 class _State:
@@ -356,8 +374,9 @@ def create_app(*, fail_on_empty: bool = False) -> FastAPI:
         drawing pixels from the background (Step A) and extracts long
         horizontal and vertical structures (Step B), as described in
         ``docs/api.md``. These are diagnostic masks only: furniture and
-        text are preserved, nothing is removed, and no wall candidates are
-        decided yet — that is Step C, pending inspection of these outputs.
+        text are preserved, nothing is removed, and no wall decisions are
+        made here. Step C (wall-candidate identification) is available at
+        ``/detect2d/wall-candidates``.
         """
         started = time.perf_counter()
         contents, _ = await _read_upload(request, image)
@@ -377,6 +396,92 @@ def create_app(*, fail_on_empty: bool = False) -> FastAPI:
         )
 
         return JSONResponse(content=wall_detection_to_dict(result))
+
+    @application.post("/detect2d/wall-candidates")
+    async def detect2d_wall_candidates(
+        request: Request,
+        image: Annotated[UploadFile, File(description="Floor plan image")],
+    ) -> JSONResponse:
+        """Run Phase 2 (wall detection), Step C on a floor plan.
+
+        Normalizes the upload (Phase 1 input stage), produces the Step A/B
+        masks and identifies geometric stroke candidates: collinear edge
+        consolidation, parallel-edge pairing, duplicate merging and
+        per-candidate measurement, as described in ``docs/api.md``. Every
+        candidate is preserved with its evidence and uncertainty — they are
+        proposals, not confirmed walls, and nothing is classified at this
+        step. The production wall, opening and room extraction is untouched.
+        """
+        started = time.perf_counter()
+        contents, _ = await _read_upload(request, image)
+
+        normalization = normalize_image(contents)
+        walls = detect_walls(normalization.normalized, normalization.original)
+        result = detect_candidates(
+            normalization.original,
+            walls.foreground_mask,
+            walls.horizontal,
+            walls.vertical,
+            walls.combined,
+        )
+
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        logger.info(
+            "request.completed",
+            extra={
+                "duration_ms": round(elapsed_ms, 2),
+                "image_width": result.report["input"]["original_width"],
+                "image_height": result.report["input"]["original_height"],
+                "phase": "wall_candidates",
+                "candidates": result.report["summary"]["total_candidates"],
+            },
+        )
+
+        return JSONResponse(content=wall_candidates_to_dict(result))
+
+    @application.get("/detect2d/wall-detector")
+    async def detect2d_wall_detector(request: Request) -> JSONResponse:
+        """Wall-detector view of the bundled ``examples/plans/real-time.png``.
+
+        Normalizes the fixed example plan (Phase 1), produces the Step A/B
+        masks and segments the structure masks into measured wall strokes
+        (length, mean thickness, outline polygon, all in the normalized
+        image's pixel space). No threshold is applied here: clients filter
+        strokes and redraw the survivors themselves — erasing failing
+        strokes from ``04_combined.png`` reproduces that mask exactly when
+        nothing is filtered.
+        """
+        started = time.perf_counter()
+        contents = _example_plan_bytes()
+        logger.info(
+            "request.received",
+            extra={
+                "image_filename": EXAMPLE_PLAN_PATH.name,
+                "image_content_type": "image/png",
+                "image_bytes": len(contents),
+                "client_host": request.client.host if request.client else None,
+            },
+        )
+
+        normalization = normalize_image(contents)
+        walls = detect_walls(normalization.normalized, normalization.original)
+        segmentation = segment_walls(walls.horizontal, walls.vertical)
+
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        logger.info(
+            "request.completed",
+            extra={
+                "duration_ms": round(elapsed_ms, 2),
+                "image_width": normalization.original.width,
+                "image_height": normalization.original.height,
+                "phase": "wall_detector",
+                "segments": len(segmentation.segments),
+            },
+        )
+
+        return JSONResponse(
+            content=wall_detector_to_dict(normalization, walls, segmentation)
+        )
 
     return application
 

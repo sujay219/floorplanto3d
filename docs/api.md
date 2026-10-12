@@ -351,8 +351,8 @@ stage), then Step A separates dark drawing pixels from the light background
 beside it for comparison) and Step B extracts long horizontal and vertical
 strokes by morphological opening. These are diagnostic masks only: furniture
 and text are preserved, nothing is removed from any image, and no wall
-candidates are decided yet — Step C (wall-candidate identification) follows
-only after these outputs have been inspected. The combined mask is never fed
+decisions are made here — see `POST /detect2d/wall-candidates` for Step C
+(wall-candidate identification). The combined mask is never fed
 to the room extractor.
 
 ```bash
@@ -408,6 +408,136 @@ PNG data URIs — Step A's adaptive and global foreground masks plus their
 side-by-side comparison, then Step B's horizontal, vertical and combined
 structure masks. All masks use the normalized image's coordinate space
 (255 = ink). Errors are identical to `/process-floorplan`.
+
+### `POST /detect2d/wall-candidates`
+
+`multipart/form-data` with a required `image` file. Same accepted content types
+and 50 MB cap as `/detect2d`, no scale parameters.
+
+Runs **Phase 2 (wall detection), Step C (wall-candidate identification)**: the
+upload is normalized (Phase 1 input stage), the Step A/B masks are produced,
+and straight stroke candidates are extracted from the foreground mask.
+Collinear edge fragments are consolidated (a gap is bridged only when the gap
+itself carries ink), approximately parallel edges a plausible stroke width
+apart are paired into one centreline, duplicate candidates are merged, and
+every candidate is measured. Candidates are **proposals, not confirmed
+walls**: nothing is classified, nothing is discarded (uncertain single-edge
+candidates are preserved with their uncertainty), and the production wall,
+opening and room extraction is untouched.
+
+```bash
+curl -F "image=@plan.png" http://localhost:8000/detect2d/wall-candidates
+```
+
+```json
+{
+  "phase": { "number": 3, "name": "wall_candidates", "step": "c" },
+  "candidates": [
+    {
+      "id": "cand_001",
+      "geometry": {
+        "start": { "x": 832.0, "y": 84.5 },
+        "end": { "x": 1236.0, "y": 84.5 },
+        "polygon": [ { "x": 832.0, "y": 80.0 }, { "x": 1236.0, "y": 80.0 }, { "x": 1236.0, "y": 89.0 }, { "x": 832.0, "y": 89.0 } ],
+        "bbox": { "x": 832, "y": 80, "width": 404, "height": 9 }
+      },
+      "length": 404.0,
+      "angle_deg": 0.0,
+      "orientation": "horizontal",
+      "estimated_thickness": 9.0,
+      "thickness_consistency": 0.0,
+      "straightness": 0.9326,
+      "continuity": 0.995,
+      "edge_pairing": {
+        "paired": true,
+        "edge_ids": ["edge_001", "edge_002"],
+        "angle_delta_deg": 0.0,
+        "distance_px": 9.0,
+        "overlap_fraction": 1.0,
+        "score": 1.0,
+        "probed_thickness_px": 4.0
+      },
+      "axis_support": { "horizontal": 0.995, "vertical": 0.015, "combined": 0.995 },
+      "confidence": 0.7853,
+      "confidence_evidence": { "pairing": 1.0, "continuity": 0.995, "straightness": 0.9326, "thickness_consistency": 0.0 },
+      "evidence": ["two approximately parallel edges paired: Δangle 0.0°, distance 9.0 px, overlap 1.0"],
+      "uncertainty": ["thickness varies along the stroke"],
+      "merged_from": []
+    }
+  ],
+  "report": { "phase": {}, "steps": {}, "summary": {}, "input": {}, "parameters": {}, "limitations": [] },
+  "images": {
+    "overlay": { "filename": "wall_candidates_overlay.png", "media_type": "image/png", "data": "data:image/png;base64,..." }
+  }
+}
+```
+
+`candidates` is the `wall_candidates.json` list, in original-image pixel
+space. Each candidate carries its geometry (centreline, stroke-band polygon,
+bounding box), length, angle and orientation (`horizontal`, `vertical` or
+`diagonal`), estimated thickness with consistency, straightness, continuity,
+edge-pairing evidence (paired edge IDs, angle delta, distance, overlap and
+score), Step B mask support (recorded as evidence only), a confidence score
+with its per-signal breakdown, and written `evidence` and `uncertainty`
+lists. Confidence is geometric coherence only; no candidate is a confirmed
+wall. `report` is the `candidate_report.json` document (summary, the
+scale-aware detection parameters and the known limitations).
+`images.overlay` is the original image with candidate centrelines, stroke
+bands and IDs drawn over it (blue = paired edges, orange = single-edge /
+uncertain). Errors are identical to `/process-floorplan`.
+
+### `GET /detect2d/wall-detector`
+
+No request body and no parameters: the input is the bundled
+`examples/plans/real-time.png` example plan.
+
+Normalizes the fixed example and returns one document for the
+wall-detector UI: the Phase 1 `normalized.png`, the Step B
+`04_combined.png` structure mask and every wall stroke of the masks as a
+measured segment. No threshold is applied server-side — clients filter
+segments (for example by `thickness` and `length`) and redraw the
+survivors themselves.
+
+```bash
+curl http://localhost:8000/detect2d/wall-detector
+```
+
+```json
+{
+  "phase": { "number": 3, "name": "wall_detector" },
+  "images": {
+    "normalized": { "filename": "normalized.png", "media_type": "image/png", "data": "data:image/png;base64,..." },
+    "combined": { "filename": "04_combined.png", "media_type": "image/png", "data": "data:image/png;base64,..." }
+  },
+  "segments": [
+    {
+      "id": "seg_001",
+      "orientation": "horizontal",
+      "length": 179.0,
+      "thickness": 8.4,
+      "area": 1504,
+      "bbox": { "x": 10, "y": 20, "width": 179, "height": 8 },
+      "polygon": [ { "x": 10.0, "y": 20.0 }, { "x": 188.0, "y": 20.0 }, { "x": 188.0, "y": 27.0 }, { "x": 10.0, "y": 27.0 } ]
+    }
+  ],
+  "report": {
+    "phase": { "number": 3, "name": "wall_segments" },
+    "coordinate_space": "normalized",
+    "summary": { "total_segments": 214, "horizontal_segments": 118, "vertical_segments": 96 }
+  }
+}
+```
+
+`segments` lists one entry per connected component of the Step B
+horizontal and vertical masks: its `orientation`, `length` (bounding-box
+extent along the stroke axis), `thickness` (mean stroke width,
+`area / length`), `area`, `bbox` and outer-contour `polygon`. Everything
+is in the **normalized image's pixel space** — the same space as the two
+images — so a client can erase failing segments from `04_combined.png`
+and reproduce that mask exactly when no threshold is applied. The masks
+are axis-aligned by construction, so no diagonal strokes appear.
+`report` carries the coordinate space and per-orientation counts. Errors
+are identical to `/process-floorplan`.
 
 ### `POST /detect2d/rectangles`
 
